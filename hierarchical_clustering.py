@@ -29,6 +29,7 @@ class AgglomerativeClustering:
         # key: the winning clusters at the step. item: all the existing clusters at this step
         self.existing_clusters_log = {}
         self.distance_log = {} # Dictionary saving all distances
+        self.randomization_log = {} # Dictionary saving all randomization terms
 
 
     def fit(self):
@@ -36,9 +37,12 @@ class AgglomerativeClustering:
         self.cluster_nodes = [ClusterNode(points=[i]) for i in
                               range(self.n_samples)]  #initial step: each point as a cluster
         self.distance_matrix = self._compute_distance_matrix()  #initial
+
         while len(self.cluster_nodes) > self.n_clusters:
+            current_clusters = self.cluster_nodes.copy()
             # Find the two closest clusters
             i, j = self._find_closest_clusters(self.distance_matrix)
+            self.existing_clusters_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = current_clusters.copy()
             self._merge_clusters(i, j, self.distance_matrix)
 
         self.root = self.cluster_nodes[0]  # Final merged cluster as root
@@ -46,7 +50,11 @@ class AgglomerativeClustering:
     def _compute_distance_matrix(self):
         """Compute the initial distance matrix for all points."""
         from scipy.spatial.distance import pdist, squareform
-        return squareform(pdist(self.X, metric=self.affinity))
+        distance_matrix = squareform(pdist(self.X, metric=self.affinity))
+        for i in range(len(self.X)):
+            for j in range(i + 1, len(self.X)):  # Only upper triangular part
+                self.distance_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = distance_matrix[i, j]
+        return distance_matrix
 
     def _find_closest_clusters(self, distance_matrix):
         """Find the indices of the two closest clusters."""
@@ -65,7 +73,8 @@ class AgglomerativeClustering:
         # Merge clusters
         merged_points = self.cluster_nodes[i].points + self.cluster_nodes[j].points
         new_node = ClusterNode(points=merged_points, left=self.cluster_nodes[i], right=self.cluster_nodes[j],
-                               distance=distance_matrix[i, j], depth=self.cluster_nodes[i].depth + 1)
+                               distance=distance_matrix[i, j],
+                               depth= max(self.cluster_nodes[i].depth, self.cluster_nodes[j].depth) + 1)
 
         self.cluster_nodes.append(new_node)
         # Update the distance matrix
@@ -74,6 +83,7 @@ class AgglomerativeClustering:
         # Remove the merged clusters from the list
         self.cluster_nodes.pop(max(i, j))  # Remove the higher index first
         self.cluster_nodes.pop(min(i, j))  # Then remove the lower index
+
 
     def _update_distance_matrix(self, distance_matrix, new_node, i, j):
         """
@@ -88,15 +98,17 @@ class AgglomerativeClustering:
 
         # Compute new distances from the new node to all remaining clusters
         for k in range(len(self.cluster_nodes)):
+            if k == i or k==j:
+                continue
             # Compute distance between new_node and cluster k
             dist = self._calculate_linkage_distance(new_node, self.cluster_nodes[k])
             new_distance_matrix[new_size - 1, k] = dist
             new_distance_matrix[k, new_size - 1] = dist
+            self.distance_log[(new_node,self.cluster_nodes[k])] = dist
 
         # Remove the old distances
         distance_matrix = np.delete(new_distance_matrix, (i, j), axis=0)
         distance_matrix = np.delete(distance_matrix, (i, j), axis=1)
-
         return distance_matrix
 
     def _calculate_linkage_distance(self, new_node, cluster):
