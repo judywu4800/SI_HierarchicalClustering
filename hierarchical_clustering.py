@@ -1,9 +1,14 @@
+import random
+
 import numpy as np
 from scipy.spatial import distance
 
 
 #TODO: Store all distances between clusters (now only stored the winning pair distance)
+# (Done but possibly have more efficient way)
 #TODO: Add randomization terms and store them
+# (Saved in nested dictionary)
+# For both tasks, not sure if it'd be too difficult to retrieve
 
 class ClusterNode:
     def __init__(self, points=None, left=None, right=None, distance= 0, depth=0):
@@ -17,18 +22,21 @@ class ClusterNode:
 
 
 class AgglomerativeClustering:
-    def __init__(self, X, n_clusters=2, affinity='euclidean', linkage='ward'):
+    def __init__(self, X, n_clusters=2, tau = 1, affinity='euclidean', linkage='ward'):
         self.X = X
+        self.tau = tau
         self.cluster_nodes = None
         self.distance_matrix = None
         self.n_clusters = n_clusters  # Number of clusters to form
         self.affinity = affinity  # Distance metric
         self.linkage = linkage  # Linkage criteria
         self.root = None  # Root of the cluster hierarchy
+        self.step = 0
         # dictionary of all clusters that have ever existed to retrieve distance.
         # key: the winning clusters at the step. item: all the existing clusters at this step
         self.existing_clusters_log = {}
         self.distance_log = {} # Dictionary saving all distances
+
         self.randomization_log = {} # Dictionary saving all randomization terms
 
 
@@ -40,6 +48,7 @@ class AgglomerativeClustering:
 
         while len(self.cluster_nodes) > self.n_clusters:
             current_clusters = self.cluster_nodes.copy()
+            self.step += 1
             # Find the two closest clusters
             i, j = self._find_closest_clusters(self.distance_matrix)
             self.existing_clusters_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = current_clusters.copy()
@@ -63,8 +72,14 @@ class AgglomerativeClustering:
 
         for i in range(len(self.cluster_nodes)):
             for j in range(i + 1, len(self.cluster_nodes)):
-                if distance_matrix[i, j] < min_distance:
-                    min_distance = distance_matrix[i, j]
+                random_term = random.gauss(0, self.tau)
+                randomized_distance = distance_matrix[i, j] + random_term
+                cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
+                if (cluster1, cluster2) not in self.randomization_log:
+                    self.randomization_log[(cluster1, cluster2)] = {}
+                self.randomization_log[(cluster1, cluster2)][self.step] = random_term
+                if randomized_distance < min_distance:
+                    min_distance = randomized_distance
                     closest_clusters = (i, j)
         return closest_clusters
 
