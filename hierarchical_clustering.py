@@ -1,7 +1,7 @@
 import random
-
 import numpy as np
 from scipy.spatial import distance
+from sklearn.metrics import silhouette_score
 
 
 #TODO: Store all distances between clusters (now only stored the winning pair distance)
@@ -10,6 +10,8 @@ from scipy.spatial import distance
 # (Saved in nested dictionary)
 # For both tasks, not sure if it'd be too difficult to retrieve
 
+
+#TODO: check the scale of randomization term (when =1, need tau = 100 to be mixed)
 class ClusterNode:
     def __init__(self, points=None, left=None, right=None, distance= 0, depth=0):
         self.points = points  # Points contained in this cluster
@@ -24,6 +26,7 @@ class ClusterNode:
 class AgglomerativeClustering:
     def __init__(self, X, n_clusters=2, tau = 1, affinity='euclidean', linkage='ward'):
         self.X = X
+        self.n = np.shape(X)[0]
         self.tau = tau
         self.cluster_nodes = None
         self.distance_matrix = None
@@ -38,6 +41,8 @@ class AgglomerativeClustering:
         self.distance_log = {} # Dictionary saving all distances
 
         self.randomization_log = {} # Dictionary saving all randomization terms
+
+        self.labels = []
 
 
     def fit(self):
@@ -77,7 +82,7 @@ class AgglomerativeClustering:
                 cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                 if (cluster1, cluster2) not in self.randomization_log:
                     self.randomization_log[(cluster1, cluster2)] = {}
-                self.randomization_log[(cluster1, cluster2)][self.step] = random_term
+                self.randomization_log[(cluster1, cluster2)][self.step] = random_term*np.sqrt(self.n)
                 if randomized_distance < min_distance:
                     min_distance = randomized_distance
                     closest_clusters = (i, j)
@@ -113,7 +118,7 @@ class AgglomerativeClustering:
 
         # Compute new distances from the new node to all remaining clusters
         for k in range(len(self.cluster_nodes)):
-            if k == i or k==j:
+            if k == i or k == j:
                 continue
             # Compute distance between new_node and cluster k
             dist = self._calculate_linkage_distance(new_node, self.cluster_nodes[k])
@@ -125,6 +130,21 @@ class AgglomerativeClustering:
         distance_matrix = np.delete(new_distance_matrix, (i, j), axis=0)
         distance_matrix = np.delete(distance_matrix, (i, j), axis=1)
         return distance_matrix
+
+    def get_cluster_labels(self):
+        """Extract cluster labels for each point."""
+        labels = np.zeros(self.n_samples, dtype=int)
+        for cluster_id, node in enumerate(self.cluster_nodes):
+            for point in node.points:
+                labels[point] = cluster_id
+        self.labels = labels
+        return labels
+
+    def compute_silhouette_score(self):
+        """Compute the Silhouette Score for the clustering."""
+        labels = self.get_cluster_labels()
+        score = silhouette_score(self.X, labels, metric=self.affinity)
+        return score
 
     def _calculate_linkage_distance(self, new_node, cluster):
         """Calculate the distance between clusters based on the chosen linkage method."""
@@ -226,3 +246,42 @@ class AgglomerativeClustering:
             return float(np.linalg.norm(point1 - point2))
         else:
             raise ValueError("Unknown affinity: {}".format(self.affinity))
+
+### Inference part:
+    def compute_reference_measure(self, grid, sd_rand=1):
+        """
+        Compute an approximate reference measure over a grid of values.
+        :param grid: Array of grid points to evaluate the reference measure.
+        :param sd_rand: Standard deviation of the randomization term.
+        :return: Array of reference measures for each grid point.
+        """
+        ref_measure = np.zeros(len(grid))
+
+        for g_idx, g in enumerate(grid):
+            # Reinitialize the hierarchy to traverse
+            node = self.root
+            self._traverse_tree_for_reference(node, g, ref_measure, g_idx, sd_rand)
+
+        return ref_measure
+
+    def _traverse_tree_for_reference(self, node, g, ref_measure, g_idx, sd_rand):
+        """
+        Recursively traverse the hierarchy, calculating contributions to the reference measure.
+        """
+        if node.left is None and node.right is None:
+            # Leaf node, base case
+            return
+
+        # Compute contribution at the current node
+        cluster_dist = node.distance
+        randomization = self.randomization_log.get((node.left, node.right), {}).get(self.step, 0)
+        contribution = -0.5 * (g - cluster_dist - randomization) ** 2 / (sd_rand ** 2)
+
+        # Accumulate contribution
+        ref_measure[g_idx] += contribution
+
+        # Recurse into child nodes
+        if node.left:
+            self._traverse_tree_for_reference(node.left, g, ref_measure, g_idx, sd_rand)
+        if node.right:
+            self._traverse_tree_for_reference(node.right, g, ref_measure, g_idx, sd_rand)
