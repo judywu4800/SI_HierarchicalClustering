@@ -49,10 +49,10 @@ class approximate_grid_inference(grid_inference):
                               grid):
 
         """
-        Approximate the log of the reference density on a grid.
+        Approximate the log of the reference density on a grid. （reference is the correction term）
         """
 
-        TS = self.target_spec
+        TS = self.target_spec # attributes specifying the distributions
         QS = self.query_spec
         cond_precision = np.linalg.inv(QS.cond_cov)
         
@@ -69,8 +69,8 @@ class approximate_grid_inference(grid_inference):
             # cond_mean is "something" times D
             # Gamma is cov_target_score.T.dot(prec_target)
 
-            cond_mean_grid = (linear_coef.dot(np.atleast_1d(grid[k] - observed_target)) + QS.cond_mean)
-            conjugate_arg = cond_precision.dot(cond_mean_grid)
+            cond_mean_grid = (linear_coef.dot(np.atleast_1d(grid[k] - observed_target)) + QS.cond_mean) # which equation does it come from
+            conjugate_arg = cond_precision.dot(cond_mean_grid) # \Delta(y, U)?
 
             val, _, _ = solver(conjugate_arg,
                                cond_precision,
@@ -88,13 +88,14 @@ class approximate_grid_inference(grid_inference):
         TS = self.target_spec
         QS = self.query_spec
 
-        precs, S, r, T = self.conditional_spec
+        precs, S, r, T = self.conditional_spec # likely represent precision matrices, covariances, correlations, and transformation matrices.
 
         self._families = []
 
         if self.ncoarse is not None:
             coarse_grid = np.zeros((self.stat_grid.shape[0], self.ncoarse))
             for j in range(coarse_grid.shape[0]):
+                #For each statistical dimension, fills coarse_grid with evenly spaced points (np.linspace) between the minimum and maximum values of self.stat_grid
                 coarse_grid[j,:] = np.linspace(self.stat_grid[j].min(),
                                                self.stat_grid[j].max(),
                                                self.ncoarse)
@@ -103,17 +104,18 @@ class approximate_grid_inference(grid_inference):
             eval_grid = self.stat_grid
             
         _log_ref = np.zeros((self.ntarget, self.stat_grid[0].shape[0]))
+        # initializes a matrix of zeros with dimensions (number of targets, number of points in a statistical grid) to store log-weights
 
-        for m in range(self.ntarget):
+        for m in range(self.ntarget): #iterate target
 
-            observed_target_uni = (TS.observed_target[m]).reshape((1,))
-            cov_target_uni = (np.diag(TS.cov_target)[m]).reshape((1, 1))
+            observed_target_uni = (TS.observed_target[m]).reshape((1,)) #extract the observed target
+            cov_target_uni = (np.diag(TS.cov_target)[m]).reshape((1, 1))  # extract the covariance of the target m
 
             var_target = 1. / (precs[m][0, 0])
 
             approx_log_ref = self._approx_log_reference(observed_target_uni,
                                                         cov_target_uni,
-                                                        T[m],
+                                                        T[m], #transformation matrix??
                                                         eval_grid[m])
             
             if self.ncoarse is None:

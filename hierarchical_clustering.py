@@ -82,7 +82,7 @@ class AgglomerativeClustering:
                 cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                 if (cluster1, cluster2) not in self.randomization_log:
                     self.randomization_log[(cluster1, cluster2)] = {}
-                self.randomization_log[(cluster1, cluster2)][self.step] = random_term*np.sqrt(self.n)
+                self.randomization_log[(cluster1, cluster2)][self.step] = random_term
                 if randomized_distance < min_distance:
                     min_distance = randomized_distance
                     closest_clusters = (i, j)
@@ -145,6 +145,19 @@ class AgglomerativeClustering:
         labels = self.get_cluster_labels()
         score = silhouette_score(self.X, labels, metric=self.affinity)
         return score
+
+    def compute_wcss(self):
+        """Compute the Within-Cluster Sum of Squares (WCSS) for the clustering."""
+        labels = self.get_cluster_labels()
+        wcss = 0
+        for cluster in set(labels):
+            # Extract points belonging to the current cluster
+            cluster_points = self.X[labels == cluster]
+            # Calculate the centroid of the cluster
+            centroid = cluster_points.mean(axis=0)
+            # Calculate the sum of squared distances of points to the centroid
+            wcss += ((cluster_points - centroid) ** 2).sum()
+        return wcss
 
     def _calculate_linkage_distance(self, new_node, cluster):
         """Calculate the distance between clusters based on the chosen linkage method."""

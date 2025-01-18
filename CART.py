@@ -169,7 +169,8 @@ class RegressionTree:
                         #print("entered 2")
                         best_split["feature_index"] = feature_index
                         best_split["threshold"] = threshold
-                        best_split["position"] = i
+                        best_split["position"] = i # the position of the sorted feature value that was chosen as best split?
+                        # forced to have a proportion of sample in one leaf
                         best_split["X_left"] = X_left
                         best_split["y_left"] = y_left
                         best_split["X_right"] = X_right
@@ -256,7 +257,7 @@ class RegressionTree:
 
         while depth <= current_depth:
             for g_idx, g in enumerate(grid):
-                y_grid = g * sd ** 2 * norm_contrast + nuisance
+                y_grid = g * sd ** 2 * norm_contrast + nuisance #what is sd? dispersion of Y?
                 # TODO: Account for depth here
                 # Subsetting the covariates to this current node
                 X = self.X[node.membership.astype(bool)]
@@ -270,8 +271,8 @@ class RegressionTree:
                                                     randomization=0)
                 opt_loss_obs = self._calculate_loss(y_left_obs, y_right_obs,
                                                     randomization=0)
-                j_opt = node.feature_index  # j^*
-                s_opt = node.pos  # s^*
+                j_opt = node.feature_index  # j^* # the feature used for splitting
+                s_opt = node.pos  # s^* #the position of the feature value used
                 randomization = node.randomization
                 S_total, J_total = randomization.shape
                 implied_mean = []
@@ -292,7 +293,7 @@ class RegressionTree:
                             implied_mean_s_j \
                                 = optimal_loss - self._calculate_loss(y_left,
                                                                       y_right,
-                                                                      randomization=0)
+                                                                      randomization=0) #the Ds computed by grid value
                             # The split of the actually observed Y
                             X_left_o, y_left_o, X_right_o, y_right_o \
                                 = self._split(X, y_node, j, threshold)
@@ -303,7 +304,7 @@ class RegressionTree:
                                                                      y_right_o,
                                                                      randomization=0)
                                                 + (randomization[s_opt, j_opt] -
-                                                   randomization[s, j]))
+                                                   randomization[s, j])) # the Ds + randomization by observed value
                             # print("s:", s, "j:", j, "sopt:", s_opt, "jopt:", j_opt)
 
                             # Record the implied mean
@@ -322,7 +323,7 @@ class RegressionTree:
                 n_opt = len(implied_mean)
                 implied_cov = np.ones((n_opt, n_opt)) + np.eye(n_opt)
                 prec = (np.eye(n_opt) - np.ones((n_opt, n_opt))
-                        / ((n_opt + 1))) / (sd_rand ** 2)
+                        / ((n_opt + 1))) / (sd_rand ** 2) # the inverse of the covariance
 
                 # TODO: what is a feasible point?
                 # TODO: Need to have access to the observed opt var
@@ -475,7 +476,7 @@ class RegressionTree:
                 # reduced_dim = max(int(0.1*len(implied_mean)), 5)
                 top_d_idx = obs_opt_order[0:reduced_dim]
                 rem_d_idx = obs_opt_order[reduced_dim:]
-                offset_val = observed_opt[obs_opt_order[reduced_dim]]
+                offset_val = observed_opt[obs_opt_order[reduced_dim]] #
                 # print("LB:", offset_val)
 
                 linear = np.zeros((reduced_dim * 2, reduced_dim))
@@ -507,7 +508,7 @@ class RegressionTree:
                                                                cond_implied_prec))
                     # Constraints: con_linear' * u <= con_offset
                     constraints = [o >= offset_val, o <= 0]
-                    # print(offset_val)
+                    # print(offset_v`al)
                     # Problem definition
                     prob = cp.Problem(objective, constraints)
                     # Solve the problem
@@ -598,8 +599,8 @@ class RegressionTree:
             logWeights = np.zeros((ngrid,))
             for g in range(ngrid):
                 # TODO: Check if the original exp. fam. density is correct
-                logWeights[g] = (- 0.5 * (grid[g]) ** 2 + approx_fn(grid[g]))
-                sel_probs[g] = approx_fn(grid[g])
+                logWeights[g] = (- 0.5 * (grid[g]) ** 2 + approx_fn(grid[g])) #natural parameter
+                sel_probs[g] = approx_fn(grid[g]) #selection probability
 
             # normalize logWeights
             logWeights = logWeights - np.max(logWeights)
