@@ -378,6 +378,7 @@ class AgglomerativeClustering:
         #get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
+        nu = compute_nu(node).reshape(-1, 1)
 
         current_step = find_current_step((p_node_1, p_node_2))
         print("current step: {}".format(current_step))
@@ -390,6 +391,7 @@ class AgglomerativeClustering:
         G_w_2 = p_node_2
         s = current_step  #going from top level to the beginning
         while s > 0:
+            print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
             merged_pair_r = (G_w_2, G_w_1)
             # to get all the existing cluster at this step
@@ -397,33 +399,32 @@ class AgglomerativeClustering:
                 clusters_s = self.existing_clusters_log[merged_pair]
             else:
                 clusters_s = self.existing_clusters_log[merged_pair_r]
-            pairs = combinations(clusters_s, 2)  # get all the possible pairs at the step
+
+            rand_dict = self.randomization_log[s]
+            if merged_pair in self.distance_log.keys():
+                D_opt_obs = self.distance_log[merged_pair]
+            else:
+                D_opt_obs = self.distance_log[merged_pair_r]  # D(\hat{G}_1, \hat{G}_2; X)
+
+            if merged_pair in rand_dict.keys():
+                randomization_opt = rand_dict[merged_pair]
+            else:
+                randomization_opt = rand_dict[merged_pair_r]
 
             for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2 ?
                 # get the reconstructed X_grid from grid value
-                nu = compute_nu(node).reshape(-1, 1)
+                print("grid value:", g)
                 X_grid = nuisance + g / np.linalg.norm(nu) * nu @ compute_dirT(contrast).reshape(1, -1)
-                rand_dict = self.randomization_log[current_step]
-
-                if merged_pair in self.distance_log.keys():
-                    D_opt_obs = self.distance_log[merged_pair]
-                else:
-                    D_opt_obs = self.distance_log[merged_pair_r]  #D(\hat{G}_1, \hat{G}_2; X)
-
-                if merged_pair in rand_dict.keys():
-                    randomization_opt = rand_dict[merged_pair]
-                else:
-                    randomization_opt = rand_dict[merged_pair_r]
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
 
                 implied_mean = []
                 observed_opt = []
 
+                pairs = combinations(clusters_s, 2)  # get all the possible pairs at the step
                 for cluster1, cluster2 in pairs:
                     #print(f"Processing pair: {cluster1}, {cluster2}")
-
-                    if not ((cluster1 == p_node_1 and cluster2 == p_node_2) or (
-                            cluster2 == p_node_1 and cluster1 == p_node_2)):
+                    if not ((cluster1 == G_w_1 and cluster2 == G_w_2) or (
+                            cluster2 == G_w_1 and cluster1 == G_w_2)):
                         pair = (cluster1, cluster2)
                         if pair in self.distance_log.keys():
                             D_obs = self.distance_log[pair]
@@ -442,13 +443,17 @@ class AgglomerativeClustering:
                         implied_mean_s_i = D_opt_grid - D_grid
                         implied_mean.append(implied_mean_s_i)
 
-                #print("implied_mean", implied_mean)
-                break
-                #print("observed_opt", observed_opt)
+
+                print("implied_mean", implied_mean)
+                print("observed_opt", observed_opt)
                 # TODO: write the solve_barrier function for this alg
 
-            winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
-            print(winning_pair_s)
+
+
+
+            if s>1:
+                winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
+                G_w_1 = winning_pair_s[0]
+                G_w_2 = winning_pair_s[1]
             s = s-1
 
-        # not sure why here the arrays are not appended
