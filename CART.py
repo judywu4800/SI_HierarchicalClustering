@@ -237,7 +237,7 @@ class RegressionTree:
 
     def _approx_log_reference(self, node, grid, nuisance,
                               contrast, norm_contrast, sd=1, sd_rand=1):
-        ## TODO: 0. grid is a grid for eta'Y / (sd * norm_contrast);
+        ## TODO: 0. grid is a grid for eta'Y / (sd * norm_contrast); ??? eta'Y/(sd*norm(contrast))
         ##          first reconstruct eta'Y and then reconstruct Q
         ## TODO: 1. reconstruct Q from the grid
         ## TODO: 2. Perform Laplace approximation for each grid,
