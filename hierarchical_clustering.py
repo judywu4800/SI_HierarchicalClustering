@@ -3,6 +3,9 @@ import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
 from itertools import combinations
+from Utils.barrier_affine import solve_barrier_tree_nonneg
+from Utils.discrete_family import discrete_family
+from scipy.interpolate import interp1d
 
 
 #TODO: Store all distances between clusters (now only stored the winning pair distance)
@@ -239,12 +242,13 @@ class AgglomerativeClustering:
     def _average_linkage(self, new_node, cluster, data=None):
         if data is None:
             data = self.X
-        data_new_node = self.data[new_node.points]
-        data_cluster = self.data[cluster.points]
+        data_new_node = data[new_node.points]
+        data_cluster = data[cluster.points]
         distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
         return float(np.mean(distances))
 
     def _weighted_linkage(self, new_node, cluster, data=None):
+        #TODO this is incorrect implementation
         if data is None:
             data = self.X
         size_new = len(new_node.points)
@@ -339,7 +343,18 @@ class AgglomerativeClustering:
             self._traverse_tree_for_reference(node.left, g, ref_measure, g_idx, sd_rand)
         if node.right:
             self._traverse_tree_for_reference(node.right, g, ref_measure, g_idx, sd_rand)
+    def compute_nu(self,node):
+            # return the projection direction from the given node
+        G_1 = np.array(node.left.points)
+        G_2 = np.array(node.right.points)
+        n_G1 = len(G_1)
+        n_G2 = len(G_2)
 
+        nu = np.zeros(self.n)
+
+        nu[G_1] += 1 / n_G1
+        nu[G_2] -= 1 / n_G2
+        return nu
     def _approx_log_reference(self, node, grid, nuisance,
                               contrast, sd=1, sd_rand=1):
 
@@ -356,18 +371,6 @@ class AgglomerativeClustering:
                     return idx + 1
             return -1
 
-        def compute_nu(node):
-            # return the projection direction from the given node
-            G_1 = np.array(node.left.points)
-            G_2 = np.array(node.right.points)
-            n_G1 = len(G_1)
-            n_G2 = len(G_2)
-
-            nu = np.zeros(self.n)
-
-            nu[G_1] += 1 / n_G1
-            nu[G_2] -= 1 / n_G2
-            return nu
 
         def compute_dirT(w):
             #return dir(w)^T
@@ -378,13 +381,15 @@ class AgglomerativeClustering:
         #get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
-        nu = compute_nu(node).reshape(-1, 1)
+        nu = self.compute_nu(node).reshape(-1, 1)
 
         current_step = find_current_step((p_node_1, p_node_2))
         print("current step: {}".format(current_step))
 
         all_winning_pairs = self.get_all_winning_pairs()
         print("all winning pairs: {}".format(all_winning_pairs))
+
+        ref_hat = np.zeros_like(grid)
 
         # TODO: need to add a layer of step (from last step to the beginning)
         G_w_1 = p_node_1  #the top level winning pair
@@ -411,20 +416,23 @@ class AgglomerativeClustering:
             else:
                 randomization_opt = rand_dict[merged_pair_r]
 
-            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2 ?
+            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd) ?
                 # get the reconstructed X_grid from grid value
                 print("grid value:", g)
-                X_grid = nuisance + g / np.linalg.norm(nu) * nu @ compute_dirT(contrast).reshape(1, -1)
+                X_grid = nuisance + g * sd * nu @ compute_dirT(contrast).reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
 
                 implied_mean = []
                 observed_opt = []
 
                 pairs = combinations(clusters_s, 2)  # get all the possible pairs at the step
+                idx_pair = 0
+                idx_winning = idx_pair
                 for cluster1, cluster2 in pairs:
                     #print(f"Processing pair: {cluster1}, {cluster2}")
-                    if not ((cluster1 == G_w_1 and cluster2 == G_w_2) or (
-                            cluster2 == G_w_1 and cluster1 == G_w_2)):
+                    if (G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2):
+                        idx_winning = idx_pair
+                    else:
                         pair = (cluster1, cluster2)
                         if pair in self.distance_log.keys():
                             D_obs = self.distance_log[pair]
@@ -443,17 +451,122 @@ class AgglomerativeClustering:
                         implied_mean_s_i = D_opt_grid - D_grid
                         implied_mean.append(implied_mean_s_i)
 
-
-                print("implied_mean", implied_mean)
-                print("observed_opt", observed_opt)
-                # TODO: write the solve_barrier function for this alg
+                    idx_pair += 1
 
 
+                #print("implied_mean", implied_mean)
+                #print("observed_opt", observed_opt)
+                # TODO: write the solve_barrier function for this alg (should be the same as tree just different mean and covariance?)
+                implied_mean = np.array(implied_mean)
+                observed_opt = np.array(observed_opt)
+                assert np.max(observed_opt) < 0
 
+                n_opt = len(implied_mean)
+                M = np.zeros((n_opt+1,n_opt+1)) -1 * np.eye(n_opt+1)
+                M[:, idx_winning] += 1
+                M = np.delete(M, idx_winning, axis=0)
+                implied_cov = sd_rand**2 * M @ M.T
+                prec = np.linalg.inv(implied_cov)
+
+                sel_prob, _, _ = solve_barrier_tree_nonneg(Q=implied_mean,
+                                                           precision=prec,
+                                                           feasible_point=None)
+                const_term = (implied_mean).T.dot(prec).dot(implied_mean) / 2
+                ref_hat[g_idx] += (- sel_prob - const_term)
+                print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
 
             if s>1:
                 winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
                 G_w_1 = winning_pair_s[0]
                 G_w_2 = winning_pair_s[1]
-            s = s-1
+            s -= 1
+
+            return np.array(ref_hat)
+
+
+
+    def merge_inference(self, node, ngrid = 1000, ncoarse = 20, grid_width = 15,
+                            sd = 1, level=0.9):
+
+        nu = self.compute_nu(node)
+        nuisance = (np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu)) @ self.X
+
+        stat_grid = np.linspace(-grid_width, grid_width,
+                                    num=ngrid)
+        contrast = self.X.T@nu
+        norm_nu = nu / (np.linalg.norm(nu) * sd)
+        observed_target = np.linalg.norm(self.X.T@nu)
+
+
+        if ncoarse is not None:
+            coarse_grid = np.linspace(-grid_width, grid_width, ncoarse)
+            eval_grid = coarse_grid
+        else:
+            eval_grid = stat_grid
+
+        ref = self._approx_log_reference(node=node,
+                                         grid=eval_grid,
+                                         nuisance=nuisance,
+                                         contrast=contrast,
+                                         sd=sd,
+                                         sd_rand=self.tau)
+
+        if ncoarse is None:
+            logWeights = np.zeros((ngrid,))
+            for g in range(ngrid):
+                # Evaluate the log pdf as a sum of (log) gaussian pdf
+                # and (log) reference measure
+                # TODO: Check if the original exp. fam. density is correct
+                logWeights[g] = (- 0.5 * (stat_grid[g]) ** 2 + ref[g])
+            # normalize logWeights
+            logWeights = logWeights - np.max(logWeights)
+            condl_density = discrete_family(eval_grid,
+                                            np.exp(logWeights),
+                                            logweights=logWeights)
+        else:
+            # print("Coarse grid")
+            approx_fn = interp1d(eval_grid,
+                                 ref,
+                                 kind='quadratic',
+                                 bounds_error=False,
+                                 fill_value='extrapolate')
+            grid = np.linspace(-grid_width, grid_width, num=ngrid)
+            sel_probs = np.zeros((ngrid,))
+            logWeights = np.zeros((ngrid,))
+            for g in range(ngrid):
+                # TODO: Check if the original exp. fam. density is correct
+                logWeights[g] = (- 0.5 * (grid[g]) ** 2 + approx_fn(grid[g])) #natural parameter
+                sel_probs[g] = approx_fn(grid[g]) #selection probability
+
+            # normalize logWeights
+            logWeights = logWeights - np.max(logWeights)
+
+            condl_density = discrete_family(grid, np.exp(logWeights),
+                                            logweights=logWeights)
+
+        if np.isnan(logWeights).sum() != 0:
+            print("logWeights contains nan")
+        elif (logWeights == np.inf).sum() != 0:
+            print("logWeights contains inf")
+        elif (np.asarray(ref) == np.inf).sum() != 0:
+            print("ref contains inf")
+        elif (np.asarray(ref) == -np.inf).sum() != 0:
+            print("ref contains -inf")
+        elif np.isnan(np.asarray(ref)).sum() != 0:
+            print("ref contains nan")
+
+        """interval = (condl_density.equal_tailed_interval
+                        (observed=contrast.T @ self.y,
+                         alpha=1-level))
+        if np.isnan(interval[0]) or np.isnan(interval[1]):
+            print("Failed to construct intervals: nan")"""
+
+        # TODO: now the result doesn't make sense at all, check math
+
+        pivot = condl_density.ccdf(x=observed_target
+                                     / (np.linalg.norm(nu) * sd),
+                                   theta=0)
+
+        return (pivot, condl_density, contrast,
+                observed_target, logWeights, sel_probs)
 
