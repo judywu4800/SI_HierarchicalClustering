@@ -1,4 +1,5 @@
 import random
+import sys
 import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
@@ -6,6 +7,7 @@ from itertools import combinations
 from Utils.barrier_affine import solve_barrier_tree_nonneg
 from Utils.discrete_family import discrete_family
 from scipy.interpolate import interp1d
+from scipy.special import gammaln, logsumexp
 
 
 #TODO: Store all distances between clusters (now only stored the winning pair distance)
@@ -17,11 +19,12 @@ from scipy.interpolate import interp1d
 
 #TODO: check the scale of randomization term (when =1, need tau = 100 to be mixed)
 class ClusterNode:
-    def __init__(self, points=None, left=None, right=None, distance=0, depth=0):
+    def __init__(self, points=None, left=None, right=None, distance=0, depth=0, parent = None):
         self.points = points  # Points contained in this cluster
         self.left = left  # Left child node (merged cluster)
         self.right = right  # Right child node (merged cluster)
         self.distance = distance  # Distance between merged clusters
+        self.parent = parent
         self.depth = depth  # Depth of this node in the hierarchy
 
     def __repr__(self):
@@ -32,6 +35,7 @@ class AgglomerativeClustering:
     def __init__(self, X, n_clusters=2, tau=1, affinity='euclidean', linkage='ward'):
         self.X = X
         self.n = np.shape(X)[0]
+        self.p = np.shape(X)[1]
         self.tau = tau
         self.cluster_nodes = None
         self.distance_matrix = None
@@ -113,10 +117,13 @@ class AgglomerativeClustering:
         new_node = ClusterNode(points=merged_points, left=self.cluster_nodes[i], right=self.cluster_nodes[j],
                                distance=distance_matrix[i, j],
                                depth=max(self.cluster_nodes[i].depth, self.cluster_nodes[j].depth) + 1)
+        self.cluster_nodes[i].parent = new_node
+        self.cluster_nodes[j].parent = new_node
 
         self.cluster_nodes.append(new_node)
         # Update the distance matrix
         self.distance_matrix = self._update_distance_matrix(distance_matrix, new_node, i, j, data)
+
 
         # Remove the merged clusters from the list
         self.cluster_nodes.pop(max(i, j))  # Remove the higher index first
@@ -247,6 +254,20 @@ class AgglomerativeClustering:
         distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
         return float(np.mean(distances))
 
+    def _minimax_linkage(self, new_node, cluster, data=None):
+        if data is None:
+            data = self.X
+        data_new_node = data[new_node.points]
+        data_cluster = data[cluster.points]
+        pairwise_distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
+        d_max_new_node = np.max(pairwise_distances, axis=1)
+        d_max_cluster = np.max(pairwise_distances, axis=0)
+        r_new_node = np.min(d_max_new_node)
+        r_cluster = np.min(d_max_cluster)
+
+        # Define minimax linkage as the max of both radii
+        return max(r_new_node, r_cluster)
+
     def _weighted_linkage(self, new_node, cluster, data=None):
         #TODO this is incorrect implementation
         if data is None:
@@ -299,21 +320,6 @@ class AgglomerativeClustering:
             raise ValueError("Unknown affinity: {}".format(self.affinity))
 
     ### Inference part:
-    def compute_reference_measure(self, grid, sd_rand=1):
-        """
-        Compute an approximate reference measure over a grid of values.
-        :param grid: Array of grid points to evaluate the reference measure.
-        :param sd_rand: Standard deviation of the randomization term.
-        :return: Array of reference measures for each grid point.
-        """
-        ref_measure = np.zeros(len(grid))
-
-        for g_idx, g in enumerate(grid):
-            # Reinitialize the hierarchy to traverse
-            node = self.root
-            self._traverse_tree_for_reference(node, g, ref_measure, g_idx, sd_rand)
-
-        return ref_measure
 
     def get_all_winning_pairs(self):
         winning_pairs = []
@@ -322,27 +328,6 @@ class AgglomerativeClustering:
             winning_pairs.append(key)
         return winning_pairs
 
-    def _traverse_tree_for_reference(self, node, g, ref_measure, g_idx, sd_rand):
-        """
-        Recursively traverse the hierarchy, calculating contributions to the reference measure.
-        """
-        if node.left is None and node.right is None:
-            # Leaf node, base case
-            return
-
-        # Compute contribution at the current node
-        cluster_dist = node.distance
-        randomization = self.randomization_log.get((node.left, node.right), {}).get(self.step, 0)
-        contribution = -0.5 * (g - cluster_dist - randomization) ** 2 / (sd_rand ** 2)
-
-        # Accumulate contribution
-        ref_measure[g_idx] += contribution
-
-        # Recurse into child nodes
-        if node.left:
-            self._traverse_tree_for_reference(node.left, g, ref_measure, g_idx, sd_rand)
-        if node.right:
-            self._traverse_tree_for_reference(node.right, g, ref_measure, g_idx, sd_rand)
     def compute_nu(self,node):
             # return the projection direction from the given node
         G_1 = np.array(node.left.points)
@@ -355,7 +340,13 @@ class AgglomerativeClustering:
         nu[G_1] += 1 / n_G1
         nu[G_2] -= 1 / n_G2
         return nu
-    def _approx_log_reference(self, node, grid, nuisance,
+
+    def compute_dirT(self,w):
+        # return dir(w)^T
+        norm = np.linalg.norm(w)
+        dir_w = (w / norm) if norm != 0 else np.zeros_like(w)
+        return dir_w.T
+    def _approx_log_reference(self, node, grid, nuisance,dir,
                               contrast, sd=1, sd_rand=1):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
@@ -372,26 +363,19 @@ class AgglomerativeClustering:
             return -1
 
 
-        def compute_dirT(w):
-            #return dir(w)^T
-            norm = np.linalg.norm(w)
-            dir_w = (w / norm) if norm != 0 else np.zeros_like(w)
-            return dir_w.T
-
         #get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
         nu = self.compute_nu(node).reshape(-1, 1)
 
         current_step = find_current_step((p_node_1, p_node_2))
-        print("current step: {}".format(current_step))
+        #print("current step: {}".format(current_step))
 
         all_winning_pairs = self.get_all_winning_pairs()
-        print("all winning pairs: {}".format(all_winning_pairs))
+        #print("all winning pairs: {}".format(all_winning_pairs))
 
         ref_hat = np.zeros_like(grid)
 
-        # TODO: need to add a layer of step (from last step to the beginning)
         G_w_1 = p_node_1  #the top level winning pair
         G_w_2 = p_node_2
         s = current_step  #going from top level to the beginning
@@ -405,7 +389,8 @@ class AgglomerativeClustering:
             else:
                 clusters_s = self.existing_clusters_log[merged_pair_r]
 
-            rand_dict = self.randomization_log[s]
+            #rand_dict = self.randomization_log[s]
+            rand_dict = self.randomization_log.get(s, {})
             if merged_pair in self.distance_log.keys():
                 D_opt_obs = self.distance_log[merged_pair]
             else:
@@ -418,8 +403,8 @@ class AgglomerativeClustering:
 
             for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd) ?
                 # get the reconstructed X_grid from grid value
-                print("grid value:", g)
-                X_grid = nuisance + g * sd * nu @ compute_dirT(contrast).reshape(1, -1)
+                #print("grid value:", g)
+                X_grid = nuisance + g * sd * nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
 
                 implied_mean = []
@@ -456,10 +441,10 @@ class AgglomerativeClustering:
 
                 #print("implied_mean", implied_mean)
                 #print("observed_opt", observed_opt)
-                # TODO: write the solve_barrier function for this alg (should be the same as tree just different mean and covariance?)
                 implied_mean = np.array(implied_mean)
                 observed_opt = np.array(observed_opt)
                 assert np.max(observed_opt) < 0
+
 
                 n_opt = len(implied_mean)
                 M = np.zeros((n_opt+1,n_opt+1)) -1 * np.eye(n_opt+1)
@@ -473,15 +458,15 @@ class AgglomerativeClustering:
                                                            feasible_point=None)
                 const_term = (implied_mean).T.dot(prec).dot(implied_mean) / 2
                 ref_hat[g_idx] += (- sel_prob - const_term)
-                print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
-
+                #print("selection probability:", ref_hat[g_idx])
+                #print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
             if s>1:
                 winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
                 G_w_1 = winning_pair_s[0]
                 G_w_2 = winning_pair_s[1]
             s -= 1
 
-            return np.array(ref_hat)
+        return np.array(ref_hat)
 
 
 
@@ -491,15 +476,16 @@ class AgglomerativeClustering:
         nu = self.compute_nu(node)
         nuisance = (np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu)) @ self.X
 
-        stat_grid = np.linspace(-grid_width, grid_width,
+        stat_grid = np.linspace(0.00001, grid_width,
                                     num=ngrid)
-        contrast = self.X.T@nu
+        contrast = np.linalg.norm(self.X.T@nu)
+        dir = self.compute_dirT(self.X.T@nu)
         norm_nu = nu / (np.linalg.norm(nu) * sd)
-        observed_target = np.linalg.norm(self.X.T@nu)
+        observed_target = np.linalg.norm(self.X.T@norm_nu)
 
 
         if ncoarse is not None:
-            coarse_grid = np.linspace(-grid_width, grid_width, ncoarse)
+            coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
             eval_grid = coarse_grid
         else:
             eval_grid = stat_grid
@@ -507,22 +493,31 @@ class AgglomerativeClustering:
         ref = self._approx_log_reference(node=node,
                                          grid=eval_grid,
                                          nuisance=nuisance,
+                                         dir = dir,
                                          contrast=contrast,
                                          sd=sd,
-                                         sd_rand=self.tau)
+                                         sd_rand=self.tau) #gives log (\hat{\Lambda}(g))
+        #the log correction term for each grid value
 
         if ncoarse is None:
             logWeights = np.zeros((ngrid,))
+            p = self.p
+            c = sd * np.linalg.norm(nu)
             for g in range(ngrid):
                 # Evaluate the log pdf as a sum of (log) gaussian pdf
                 # and (log) reference measure
-                # TODO: Check if the original exp. fam. density is correct
-                logWeights[g] = (- 0.5 * (stat_grid[g]) ** 2 + ref[g])
+                logWeights[g] = (- 0.5 * (stat_grid[g]) ** 2 + (p-1)*np.log(c* stat_grid[g])
+                        - (p / 2 - 1) * np.log(2) - gammaln(p / 2) - p * np.log(c)  + ref[g])
             # normalize logWeights
-            logWeights = logWeights - np.max(logWeights)
-            condl_density = discrete_family(eval_grid,
-                                            np.exp(logWeights),
-                                            logweights=logWeights)
+            #logWeights = logWeights - np.max(logWeights)
+            #density = np.exp(logWeights)
+            #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
+            density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
+            cdf = np.cumsum(density)
+            cdf /= cdf[-1]
+            #print(cdf)
+            # Compute the p-value: P(||X^T ν||_2 ≥ observed_target)
+            p_value = 1 - np.interp(observed_target, stat_grid, cdf)
         else:
             # print("Coarse grid")
             approx_fn = interp1d(eval_grid,
@@ -530,19 +525,27 @@ class AgglomerativeClustering:
                                  kind='quadratic',
                                  bounds_error=False,
                                  fill_value='extrapolate')
-            grid = np.linspace(-grid_width, grid_width, num=ngrid)
+            grid = np.linspace(0.00001, grid_width, num=ngrid)
             sel_probs = np.zeros((ngrid,))
             logWeights = np.zeros((ngrid,))
+            p = self.p
+            c = sd * np.linalg.norm(nu)
             for g in range(ngrid):
-                # TODO: Check if the original exp. fam. density is correct
-                logWeights[g] = (- 0.5 * (grid[g]) ** 2 + approx_fn(grid[g])) #natural parameter
+                logWeights[g] = (- 0.5 * (grid[g]) ** 2 + (p-1)*np.log(c* grid[g])
+                        - (p / 2 - 1) * np.log(2) - gammaln(p / 2) - p * np.log(c)
+                           +approx_fn(grid[g]))
                 sel_probs[g] = approx_fn(grid[g]) #selection probability
 
             # normalize logWeights
-            logWeights = logWeights - np.max(logWeights)
-
-            condl_density = discrete_family(grid, np.exp(logWeights),
-                                            logweights=logWeights)
+            #logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
+            #density = np.exp(logWeights)  # Convert back to probability space
+            #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
+            density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
+            cdf = np.cumsum(density)
+            cdf /= cdf[-1]
+            #print(cdf)
+            # Compute the p-value: P(||X^T ν||_2 ≥ observed_target)
+            p_value = 1 - np.interp(observed_target, grid, cdf)
 
         if np.isnan(logWeights).sum() != 0:
             print("logWeights contains nan")
@@ -561,12 +564,7 @@ class AgglomerativeClustering:
         if np.isnan(interval[0]) or np.isnan(interval[1]):
             print("Failed to construct intervals: nan")"""
 
-        # TODO: now the result doesn't make sense at all, check math
 
-        pivot = condl_density.ccdf(x=observed_target
-                                     / (np.linalg.norm(nu) * sd),
-                                   theta=0)
 
-        return (pivot, condl_density, contrast,
-                observed_target, logWeights, sel_probs)
+        return (p_value, observed_target)
 

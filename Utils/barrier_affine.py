@@ -664,6 +664,6 @@ def solve_barrier_tree_nonneg(Q, precision,
     obj = proposal.T.dot(conjugate_arg) + proposal.T.dot(center).dot(proposal) / 2.
     barr = np.log(1. + 1. / ( - proposal / scaling)).sum()
 
-    print("barr", (barr))
-    print("obj", (barr + obj))
+    #print("barr", (barr))
+    #print("obj", (barr + obj))
     return current_value, current, hess
