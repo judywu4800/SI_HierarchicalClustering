@@ -7,8 +7,8 @@ from itertools import combinations
 from Utils.barrier_affine import solve_barrier_tree_nonneg
 from Utils.discrete_family import discrete_family
 from scipy.interpolate import interp1d
-from scipy.special import gammaln, logsumexp
-
+from scipy.special import gammaln, logsumexp,gamma
+import time
 
 #TODO: Store all distances between clusters (now only stored the winning pair distance)
 # (Done but possibly have more efficient way)
@@ -44,13 +44,20 @@ class AgglomerativeClustering:
         self.linkage = linkage  # Linkage criteria
         self.root = None  # Root of the cluster hierarchy
         self.step = 0
-        # dictionary of all clusters that have ever existed to retrieve distance.
-        # key: the winning clusters at the step. item: all the existing clusters at this step
+
         self.existing_clusters_log = {}
-        self.distance_log = {}  # Dictionary saving all distances
-
-        self.randomization_log = {}  # Dictionary saving all randomization terms
-
+        # dictionary of all clusters that have ever existed to retrieve distance.
+        # key: the winning clusters at the step.
+        # item: all the existing clusters (before merge) at this step
+        self.distance_log = {}
+        # Dictionary saving all distances
+        # key:
+        # item:
+        self.randomization_log = {}
+        # Nested dictionary saving all randomization terms
+        # key: step from 1 to n-K
+        # item: dictionary of the randomization terms of all pairs at the step
+            #sub dictionary: key: cluster pair, item: randomization value
         self.labels = []
 
     def fit(self):
@@ -82,15 +89,19 @@ class AgglomerativeClustering:
         return distance_matrix
 
     def _find_closest_clusters(self, distance_matrix):
-        """Find the indices of the two closest clusters."""
+        """Find the indices of the two closest clusters.
+            i,j = argmin d(G_i,G_j; X) + W(G_i,G_j)"""
         min_distance = np.inf
         closest_clusters = (-1, -1)
 
         for i in range(len(self.cluster_nodes)):
             for j in range(i + 1, len(self.cluster_nodes)):
-                random_term = random.gauss(0, self.tau)
-                randomized_distance = distance_matrix[i, j] + random_term
                 cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
+                n1 = len(cluster1.points)
+                n2 = len(cluster2.points)
+                random_term = np.random.normal(loc=0, scale=self.tau)
+                randomized_distance = distance_matrix[i, j] + random_term
+
 
                 if self.step not in self.randomization_log:
                     self.randomization_log[self.step] = {}
@@ -99,9 +110,7 @@ class AgglomerativeClustering:
                 if (cluster1, cluster2) not in self.randomization_log[self.step]:
                     self.randomization_log[self.step][(cluster1, cluster2)] = random_term
 
-                #if (cluster1, cluster2) not in self.randomization_log:
-                #    self.randomization_log[(cluster1, cluster2)] = {}
-                #self.randomization_log[(cluster1, cluster2)][self.step] = random_term
+
                 if randomized_distance < min_distance:
                     min_distance = randomized_distance
                     closest_clusters = (i, j)
@@ -346,14 +355,13 @@ class AgglomerativeClustering:
         norm = np.linalg.norm(w)
         dir_w = (w / norm) if norm != 0 else np.zeros_like(w)
         return dir_w.T
-    def _approx_log_reference(self, node, grid, nuisance,dir,
-                              contrast, sd=1, sd_rand=1):
+    def _approx_log_reference(self, node, grid, nuisance,dir, sd=1):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
         # grid: each value is a grid value of ||nu^TX||_2/(sd*||nu||_2)
         # contrast: nu^TX
         # nuisance: \pi_\nu X
-        # X = nuisance + g *nu * dir(contrast)
+        # X = nuisance + g * sd *nu * dir(contrast)
 
         def find_current_step(target_key):
             dictionary = self.existing_clusters_log
@@ -362,15 +370,14 @@ class AgglomerativeClustering:
                     return idx + 1
             return -1
 
-
+        sd_rand = self.tau
         #get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
         nu = self.compute_nu(node).reshape(-1, 1)
-
+        norm_nu = nu / (np.linalg.norm(nu)) # normlize nu to make it of norm 1
         current_step = find_current_step((p_node_1, p_node_2))
         #print("current step: {}".format(current_step))
-
         all_winning_pairs = self.get_all_winning_pairs()
         #print("all winning pairs: {}".format(all_winning_pairs))
 
@@ -382,36 +389,39 @@ class AgglomerativeClustering:
         while s > 0:
             print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
+            #print("winning pair at this step: ", merged_pair)
             merged_pair_r = (G_w_2, G_w_1)
             # to get all the existing cluster at this step
             if merged_pair in self.existing_clusters_log.keys():
                 clusters_s = self.existing_clusters_log[merged_pair]
             else:
                 clusters_s = self.existing_clusters_log[merged_pair_r]
-
+            #print("clusters at this step: ", clusters_s)
             #rand_dict = self.randomization_log[s]
             rand_dict = self.randomization_log.get(s, {})
             if merged_pair in self.distance_log.keys():
                 D_opt_obs = self.distance_log[merged_pair]
             else:
                 D_opt_obs = self.distance_log[merged_pair_r]  # D(\hat{G}_1, \hat{G}_2; X)
-
+            #print("D_opt_obs", D_opt_obs)
             if merged_pair in rand_dict.keys():
                 randomization_opt = rand_dict[merged_pair]
             else:
                 randomization_opt = rand_dict[merged_pair_r]
-
-            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd) ?
+            #print("randomization_opt", randomization_opt)
+            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd)
                 # get the reconstructed X_grid from grid value
                 #print("grid value:", g)
-                X_grid = nuisance + g * sd * nu @ dir.reshape(1, -1)
+                X_grid = nuisance + g * sd * norm_nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
-
+                #print("X_grid",X_grid)
+                #print("D_opt_grid",D_opt_grid)
                 implied_mean = []
                 observed_opt = []
 
-                pairs = combinations(clusters_s, 2)  # get all the possible pairs at the step
-                idx_pair = 0
+                pairs = combinations(clusters_s, 2)
+                # get all the possible pairs at the step where (G_w_1, G_w_2) are the winning pair
+                idx_pair = 0 #to get the column index of (G_w_1, G_w_2) to construct M
                 idx_winning = idx_pair
                 for cluster1, cluster2 in pairs:
                     #print(f"Processing pair: {cluster1}, {cluster2}")
@@ -429,14 +439,16 @@ class AgglomerativeClustering:
                         else:
                             randomization_obs = rand_dict[(cluster2, cluster1)]
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-
-                        observed_opt_s_i = D_opt_obs - D_obs + randomization_opt - randomization_obs
+                        n1 = len(cluster1.points)
+                        n2 = len(cluster2.points)
+                        observed_opt_s_i = D_opt_obs - D_obs +  (randomization_opt - randomization_obs)#should be <0
                         observed_opt.append(observed_opt_s_i)
 
                         implied_mean_s_i = D_opt_grid - D_grid
                         implied_mean.append(implied_mean_s_i)
 
                     idx_pair += 1
+                #print("idx_winning", idx_winning)
 
 
                 #print("implied_mean", implied_mean)
@@ -447,23 +459,33 @@ class AgglomerativeClustering:
 
 
                 n_opt = len(implied_mean)
-                M = np.zeros((n_opt+1,n_opt+1)) -1 * np.eye(n_opt+1)
-                M[:, idx_winning] += 1
+                M = np.zeros((n_opt+1,n_opt+1)) + 1 * np.eye(n_opt+1)
+                M[:, idx_winning] -= 1
                 M = np.delete(M, idx_winning, axis=0)
+                #print("M", M)
                 implied_cov = sd_rand**2 * M @ M.T
                 prec = np.linalg.inv(implied_cov)
-
+                #print("covariance", implied_cov)
+                #print("prec", prec)
+                #start = time.time()
                 sel_prob, _, _ = solve_barrier_tree_nonneg(Q=implied_mean,
                                                            precision=prec,
                                                            feasible_point=None)
+                #end = time.time()
+                #print("time: ", end - start)
                 const_term = (implied_mean).T.dot(prec).dot(implied_mean) / 2
+                #print("sel_prob", sel_prob)
+                #print("const_term", const_term)
                 ref_hat[g_idx] += (- sel_prob - const_term)
+                #print(- sel_prob - const_term)
+                #print(ref_hat)
                 #print("selection probability:", ref_hat[g_idx])
                 #print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
             if s>1:
                 winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
                 G_w_1 = winning_pair_s[0]
                 G_w_2 = winning_pair_s[1]
+
             s -= 1
 
         return np.array(ref_hat)
@@ -471,21 +493,21 @@ class AgglomerativeClustering:
 
 
     def merge_inference(self, node, ngrid = 1000, ncoarse = 20, grid_width = 15,
-                            sd = 1, level=0.9):
+                            sd = 1):
 
-        nu = self.compute_nu(node)
-        nuisance = (np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu)) @ self.X
-
+        nu = self.compute_nu(node).reshape(-1,1)
+        norm_nu = nu / (np.linalg.norm(nu))
+        nuisance = (np.eye(self.n) - np.outer(nu, nu)/np.linalg.norm(nu)**2) @ self.X
         stat_grid = np.linspace(0.00001, grid_width,
                                     num=ngrid)
-        contrast = np.linalg.norm(self.X.T@nu)
         dir = self.compute_dirT(self.X.T@nu)
-        norm_nu = nu / (np.linalg.norm(nu) * sd)
-        observed_target = np.linalg.norm(self.X.T@norm_nu)
-
+        observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
+        #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
+        #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
+        #print("Projection error (should be close to 0):", projection_error)
 
         if ncoarse is not None:
-            coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
+            coarse_grid = np.linspace(1, grid_width, ncoarse)
             eval_grid = coarse_grid
         else:
             eval_grid = stat_grid
@@ -493,10 +515,8 @@ class AgglomerativeClustering:
         ref = self._approx_log_reference(node=node,
                                          grid=eval_grid,
                                          nuisance=nuisance,
-                                         dir = dir,
-                                         contrast=contrast,
-                                         sd=sd,
-                                         sd_rand=self.tau) #gives log (\hat{\Lambda}(g))
+                                         dir=dir,
+                                         sd=sd) #gives log (\hat{\Lambda}(g))
         #the log correction term for each grid value
 
         if ncoarse is None:
@@ -504,20 +524,26 @@ class AgglomerativeClustering:
             p = self.p
             for g in range(ngrid):
                 # Evaluate the log pdf as a sum of (log) gaussian pdf
-                # and (log) reference measure
-                logWeights[g] = (- 0.5 * (stat_grid[g]) ** 2 + (p-1)*np.log(stat_grid[g])
-                        - (p / 2 - 1) * np.log(2) - gammaln(p / 2) + ref[g])
+                # and (l og) reference measure
+                logWeights[g] = (- 0.5 * (stat_grid[g])** 2 + (p-1)*np.log(stat_grid[g])
+                        - (p / 2 - 1) * np.log(2) + ref[g])
             # normalize logWeights
-            #TODO: not sure what is the best way normalize it
-            #logWeights = logWeights - np.max(logWeights)
-            density = np.exp(logWeights)
-            cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
+            logWeights = logWeights - np.max(logWeights)
+            density = np.exp(logWeights)/gamma(p/2)
+            #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
             #density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
             #cdf = np.cumsum(density)
-            #cdf /= cdf[-1]
+            #scdf /= cdf[-1]
             #print(cdf)
             # Compute the p-value: P(||X^T ν||_2 ≥ observed_target)
-            p_value = 1 - np.interp(observed_target, stat_grid, cdf)
+            #p_value = 1 - np.interp(observed_target, stat_grid, cdf)
+            sum = 0
+            num = 0
+            for g in range(ngrid):
+                sum += density[g]
+                if stat_grid[g] >= observed_target:
+                    num += density[g]
+            p_value = num/sum
         else:
             # print("Coarse grid")
             approx_fn = interp1d(eval_grid,
@@ -531,22 +557,28 @@ class AgglomerativeClustering:
             p = self.p
             for g in range(ngrid):
                 logWeights[g] = (- 0.5 * (grid[g]) ** 2 + (p-1)*np.log(grid[g])
-                        - (p / 2 - 1) * np.log(2) - gammaln(p / 2)
-                           +approx_fn(grid[g]))
+                        + (1 - p / 2) * np.log(2) + approx_fn(grid[g]))
                 sel_probs[g] = approx_fn(grid[g]) #selection probability
 
             # normalize logWeights
-            #logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
-            density = np.exp(logWeights)  # Convert back to probability space
-            cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
+            logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
+            density = np.exp(logWeights)/gamma(p/2)  # Convert back to probability space
+            #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
             #density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
             #cdf = np.cumsum(density)
             #cdf /= cdf[-1]
             #print(cdf)
-            # Compute the p-value: P(||X^T ν||_2 ≥ observed_target)
-            p_value = 1 - np.interp(observed_target, grid, cdf)
+            # Compute the p-value: P(||X^T ν||_2/||v||sigma ≥ observed_target)
+            #p_value = 1 - np.interp(observed_target, grid, cdf)
+            sum = 0
+            num = 0
+            for g in range(ngrid):
+                sum += density[g]
+                if grid[g] >= observed_target:
+                    num += density[g]
+            p_value = num/sum
 
-        if np.isnan(logWeights).sum() != 0:
+        """if np.isnan(logWeights).sum() != 0:
             print("logWeights contains nan")
         elif (logWeights == np.inf).sum() != 0:
             print("logWeights contains inf")
@@ -555,7 +587,7 @@ class AgglomerativeClustering:
         elif (np.asarray(ref) == -np.inf).sum() != 0:
             print("ref contains -inf")
         elif np.isnan(np.asarray(ref)).sum() != 0:
-            print("ref contains nan")
+            print("ref contains nan")"""
 
         """interval = (condl_density.equal_tailed_interval
                         (observed=contrast.T @ self.y,
@@ -563,159 +595,5 @@ class AgglomerativeClustering:
         if np.isnan(interval[0]) or np.isnan(interval[1]):
             print("Failed to construct intervals: nan")"""
 
-        return (p_value, observed_target,cdf)
-
-
-
-
-    def _condl_approx_log_reference(self, node, grid, nuisance,dir,
-                              contrast, sd=1, sd_rand=1, reduced_dim = 5):
-
-        # node: a ClusterNode saving point, left, right, distance between merged, depth
-        # grid: each value is a grid value of ||nu^TX||_2
-        # contrast: nu^TX
-        # nuisance: \pi_\nu X
-        # X = nuisance + g/norm(nu) *nu * dir(contrast)
-
-        def find_current_step(target_key):
-            dictionary = self.existing_clusters_log
-            for idx, key in enumerate(dictionary.keys()):
-                if key == target_key:
-                    return idx + 1
-            return -1
-
-
-        def get_cond_dist(mean, cov, cond_idx, rem_idx, rem_val,
-                          sd_rand, rem_dim):
-            prec_rem = np.linalg.inv(cov)
-            cond_mean = mean[cond_idx] + cov[np.ix_(cond_idx, rem_idx)].dot(prec_rem).dot(rem_val - mean[rem_idx])
-            cond_cov = cov[np.ix_(cond_idx, cond_idx)] - cov[np.ix_(cond_idx, rem_idx)].dot(prec_rem).dot(
-                cov[np.ix_(rem_idx, cond_idx)])
-            cond_prec = np.linalg.inv(cond_cov)
-
-            return cond_mean, cond_cov, cond_prec
-
-        #get the parent clusters of the given node
-        p_node_1 = node.left
-        p_node_2 = node.right
-        nu = self.compute_nu(node).reshape(-1, 1)
-
-        current_step = find_current_step((p_node_1, p_node_2))
-        #print("current step: {}".format(current_step))
-
-        all_winning_pairs = self.get_all_winning_pairs()
-        #print("all winning pairs: {}".format(all_winning_pairs))
-
-        ref_hat = np.zeros_like(grid)
-
-        G_w_1 = p_node_1  #the top level winning pair
-        G_w_2 = p_node_2
-        s = current_step  #going from top level to the beginning
-        while s > 0:
-            print("level: ", s)
-            merged_pair = (G_w_1, G_w_2)
-            merged_pair_r = (G_w_2, G_w_1)
-            # to get all the existing cluster at this step
-            if merged_pair in self.existing_clusters_log.keys():
-                clusters_s = self.existing_clusters_log[merged_pair]
-            else:
-                clusters_s = self.existing_clusters_log[merged_pair_r]
-
-            #rand_dict = self.randomization_log[s]
-            rand_dict = self.randomization_log.get(s, {})
-            if merged_pair in self.distance_log.keys():
-                D_opt_obs = self.distance_log[merged_pair]
-            else:
-                D_opt_obs = self.distance_log[merged_pair_r]  # D(\hat{G}_1, \hat{G}_2; X)
-
-            if merged_pair in rand_dict.keys():
-                randomization_opt = rand_dict[merged_pair]
-            else:
-                randomization_opt = rand_dict[merged_pair_r]
-
-            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd) ?
-                # get the reconstructed X_grid from grid value
-                #print("grid value:", g)
-                X_grid = nuisance + g * sd * nu @ dir.reshape(1, -1)
-                D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
-
-                implied_mean = []
-                observed_opt = []
-
-                pairs = combinations(clusters_s, 2)  # get all the possible pairs at the step
-                idx_pair = 0
-                idx_winning = idx_pair
-                for cluster1, cluster2 in pairs:
-                    #print(f"Processing pair: {cluster1}, {cluster2}")
-                    if (G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2):
-                        idx_winning = idx_pair
-                    else:
-                        pair = (cluster1, cluster2)
-                        if pair in self.distance_log.keys():
-                            D_obs = self.distance_log[pair]
-                        else:
-                            D_obs = self.distance_log[(cluster2, cluster1)]
-
-                        if pair in rand_dict.keys():
-                            randomization_obs = rand_dict[pair]
-                        else:
-                            randomization_obs = rand_dict[(cluster2, cluster1)]
-                        D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-
-                        observed_opt_s_i = D_opt_obs - D_obs + randomization_opt - randomization_obs
-                        observed_opt.append(observed_opt_s_i)
-
-                        implied_mean_s_i = D_opt_grid - D_grid
-                        implied_mean.append(implied_mean_s_i)
-
-                    idx_pair += 1
-
-
-                #print("implied_mean", implied_mean)
-                #print("observed_opt", observed_opt)
-                implied_mean = np.array(implied_mean)
-                observed_opt = np.array(observed_opt)
-                assert np.max(observed_opt) < 0
-
-                #order in descending order
-                obs_opt_order = np.argsort(observed_opt)[::-1]
-                top_d_idx = obs_opt_order[0:reduced_dim]
-                rem_d_idx = obs_opt_order[reduced_dim:]
-                offset_val = observed_opt[obs_opt_order[reduced_dim]] #the minimum of conditioned
-
-                linear = np.zeros((reduced_dim * 2, reduced_dim))
-                linear[0:reduced_dim, 0:reduced_dim] = np.eye(reduced_dim)
-                linear[reduced_dim:, 0:reduced_dim] = -np.eye(reduced_dim)
-                offset = np.zeros(reduced_dim * 2)
-                offset[reduced_dim:] = -offset_val
-
-                n_opt = len(implied_mean)
-                M = np.zeros((n_opt+1,n_opt+1)) -1 * np.eye(n_opt+1)
-                M[:, idx_winning] += 1
-                M = np.delete(M, idx_winning, axis=0)
-                implied_cov = sd_rand**2 * M @ M.T
-                prec = np.linalg.inv(implied_cov)
-                cond_implied_mean, cond_implied_cov, cond_implied_prec = (
-                    get_cond_dist(mean=implied_mean,
-                                  cov=implied_cov,
-                                  cond_idx=top_d_idx,
-                                  rem_idx=rem_d_idx,
-                                  rem_val=observed_opt[rem_d_idx],
-                                  sd_rand=sd_rand,
-                                  rem_dim=n_opt - reduced_dim))
-
-                sel_prob, _, _ = solve_barrier_tree_nonneg(Q=implied_mean,
-                                                           precision=prec,
-                                                           feasible_point=None)
-                const_term = (implied_mean).T.dot(prec).dot(implied_mean) / 2
-                ref_hat[g_idx] += (- sel_prob - const_term)
-                #print("selection probability:", ref_hat[g_idx])
-                #print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
-            if s>1:
-                winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
-                G_w_1 = winning_pair_s[0]
-                G_w_2 = winning_pair_s[1]
-            s -= 1
-
-        return np.array(ref_hat)
+        return (p_value, observed_target, sel_probs)
 

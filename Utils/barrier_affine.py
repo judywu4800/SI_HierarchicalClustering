@@ -579,7 +579,6 @@ def solve_barrier_tree_nonneg(Q, precision,
     ## and in particular con_linear = [I -I]', con_offset = [0' -offset']'.
     conjugate_arg = -1 * precision.dot(Q)
     center = precision
-    # TODO: Debug
 
     if np.asarray(Q).shape == ():
         # center is a scalar
@@ -601,11 +600,10 @@ def solve_barrier_tree_nonneg(Q, precision,
         scaling = np.sqrt(np.diag(center))
         objective = lambda u: u.T.dot(conjugate_arg) + u.T.dot(center).dot(u) / 2. \
                               + np.log(1. + 1. / (( - u) / scaling)).sum()
-        grad = lambda u: (conjugate_arg) + center.dot(u) - (
-            1. / (scaling  - u) -
-            1. / ( -u))
-        barrier_hessian = lambda u: (np.diag(-1. / ((scaling - u) ** 2.)
-                                                             + 1. / (( - u) ** 2.)))
+        grad = lambda u: ((conjugate_arg) + center.dot(u) - (scaling / (u * (scaling - u))))
+            #(1. / (scaling  - u) - 1. / ( -u)))
+        barrier_hessian = lambda u:  np.diag(- scaling * (scaling - 2 * u) / (u**2 * (scaling - u)**2))
+         #(np.diag(-1. / ((scaling - u) ** 2.)+ 1. / (( - u) ** 2.)))
     if feasible_point is None:
         feasible_point = - 1. / scaling
 
