@@ -32,11 +32,11 @@ class ClusterNode:
 
 
 class AgglomerativeClustering:
-    def __init__(self, X, n_clusters=2, tau=1, affinity='euclidean', linkage='ward'):
+    def __init__(self, X, n_clusters=2, tau=1, affinity='euclidean', linkage='single'):
         self.X = X
         self.n = np.shape(X)[0]
         self.p = np.shape(X)[1]
-        self.tau = tau
+        self.tau = np.sqrt(self.n)*tau
         self.cluster_nodes = None
         self.distance_matrix = None
         self.n_clusters = n_clusters  # Number of clusters to form
@@ -99,7 +99,8 @@ class AgglomerativeClustering:
                 cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                 n1 = len(cluster1.points)
                 n2 = len(cluster2.points)
-                random_term = np.random.normal(loc=0, scale=self.tau)
+
+                random_term = np.random.normal(loc=0, scale= self.tau)
                 randomized_distance = distance_matrix[i, j] + random_term
 
 
