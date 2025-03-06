@@ -601,7 +601,9 @@ def solve_barrier_tree_nonneg(Q, precision,
         objective = lambda u: u.T.dot(conjugate_arg) + u.T.dot(center).dot(u) / 2. \
                               + np.log(1. + 1. / (( - u) / scaling)).sum()
         grad = lambda u: ((conjugate_arg) + center.dot(u) - (scaling / (u * (scaling - u))))
-            #(1. / (scaling  - u) - 1. / ( -u)))
+        #grad = lambda u: (conjugate_arg) + center.dot(u) - (
+        #        1. / (scaling - u) -
+        #       1. / (-u))
         barrier_hessian = lambda u:  np.diag(- scaling * (scaling - 2 * u) / (u**2 * (scaling - u)**2))
          #(np.diag(-1. / ((scaling - u) ** 2.)+ 1. / (( - u) ** 2.)))
     if feasible_point is None:

@@ -10,14 +10,8 @@ from scipy.interpolate import interp1d
 from scipy.special import gammaln, logsumexp,gamma
 import time
 
-#TODO: Store all distances between clusters (now only stored the winning pair distance)
-# (Done but possibly have more efficient way)
-#TODO: Add randomization terms and store them
-# (Saved in nested dictionary)
-# For both tasks, not sure if it'd be too difficult to retrieve
 
 
-#TODO: check the scale of randomization term (when =1, need tau = 100 to be mixed)
 class ClusterNode:
     def __init__(self, points=None, left=None, right=None, distance=0, depth=0, parent = None):
         self.points = points  # Points contained in this cluster
@@ -36,7 +30,7 @@ class AgglomerativeClustering:
         self.X = X
         self.n = np.shape(X)[0]
         self.p = np.shape(X)[1]
-        self.tau = np.sqrt(self.n)*tau
+        self.tau = tau
         self.cluster_nodes = None
         self.distance_matrix = None
         self.n_clusters = n_clusters  # Number of clusters to form
@@ -73,6 +67,7 @@ class AgglomerativeClustering:
             i, j = self._find_closest_clusters(self.distance_matrix)
             self.existing_clusters_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = current_clusters.copy()
             self._merge_clusters(i, j, self.distance_matrix)
+            #print(self.distance_matrix)
 
         self.root = self.cluster_nodes[0]  # Final merged cluster as root
         self.final_step = self.step
@@ -97,8 +92,8 @@ class AgglomerativeClustering:
         for i in range(len(self.cluster_nodes)):
             for j in range(i + 1, len(self.cluster_nodes)):
                 cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
-                n1 = len(cluster1.points)
-                n2 = len(cluster2.points)
+                #n1 = len(cluster1.points)
+                #n2 = len(cluster2.points)
 
                 random_term = np.random.normal(loc=0, scale= self.tau)
                 randomized_distance = distance_matrix[i, j] + random_term
@@ -364,10 +359,10 @@ class AgglomerativeClustering:
         # nuisance: \pi_\nu X
         # X = nuisance + g * sd *nu * dir(contrast)
 
-        def find_current_step(target_key):
+        def find_current_step(node1,node2):
             dictionary = self.existing_clusters_log
             for idx, key in enumerate(dictionary.keys()):
-                if key == target_key:
+                if (key == (node1,node2)) or (key == (node2,node1)):
                     return idx + 1
             return -1
 
@@ -377,7 +372,7 @@ class AgglomerativeClustering:
         p_node_2 = node.right
         nu = self.compute_nu(node).reshape(-1, 1)
         norm_nu = nu / (np.linalg.norm(nu)) # normlize nu to make it of norm 1
-        current_step = find_current_step((p_node_1, p_node_2))
+        current_step = find_current_step(p_node_1, p_node_2)
         #print("current step: {}".format(current_step))
         all_winning_pairs = self.get_all_winning_pairs()
         #print("all winning pairs: {}".format(all_winning_pairs))
@@ -440,8 +435,6 @@ class AgglomerativeClustering:
                         else:
                             randomization_obs = rand_dict[(cluster2, cluster1)]
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-                        n1 = len(cluster1.points)
-                        n2 = len(cluster2.points)
                         observed_opt_s_i = D_opt_obs - D_obs +  (randomization_opt - randomization_obs)#should be <0
                         observed_opt.append(observed_opt_s_i)
 
@@ -498,10 +491,10 @@ class AgglomerativeClustering:
 
         nu = self.compute_nu(node).reshape(-1,1)
         norm_nu = nu / (np.linalg.norm(nu))
-        nuisance = (np.eye(self.n) - np.outer(nu, nu)/np.linalg.norm(nu)**2) @ self.X
+        nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
         stat_grid = np.linspace(0.00001, grid_width,
                                     num=ngrid)
-        dir = self.compute_dirT(self.X.T@nu)
+        dir = self.compute_dirT(self.X.T@norm_nu)
         observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
         #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
         #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
@@ -522,14 +515,17 @@ class AgglomerativeClustering:
 
         if ncoarse is None:
             logWeights = np.zeros((ngrid,)) #the log of density
+            sel_probs = np.zeros((ngrid,))
             p = self.p
             for g in range(ngrid):
                 # Evaluate the log pdf as a sum of (log) gaussian pdf
                 # and (l og) reference measure
                 logWeights[g] = (- 0.5 * (stat_grid[g])** 2 + (p-1)*np.log(stat_grid[g])
                         - (p / 2 - 1) * np.log(2) + ref[g])
+                sel_probs[g] = ref[g]
             # normalize logWeights
             logWeights = logWeights - np.max(logWeights)
+            #logWeights = logWeights - logsumexp(logWeights)
             density = np.exp(logWeights)/gamma(p/2)
             #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
             #density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
@@ -563,6 +559,7 @@ class AgglomerativeClustering:
 
             # normalize logWeights
             logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
+            #logWeights = logWeights - logsumexp(logWeights)
             density = np.exp(logWeights)/gamma(p/2)  # Convert back to probability space
             #cdf = np.cumsum(density) / np.sum(density)  # Compute the CDF
             #density = np.exp(logWeights - logsumexp(logWeights))  # Proper normalization
