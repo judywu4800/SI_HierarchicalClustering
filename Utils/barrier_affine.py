@@ -589,22 +589,21 @@ def solve_barrier_tree_nonneg(Q, precision,
         scaling = center
         objective = lambda u: u * conjugate_arg + center * u ** 2 / 2. \
                               + np.log(1. + 1. / ( - u / scaling)).sum()
-        grad = lambda u: (conjugate_arg + center * u
-                          - (1. / (scaling - u) -
-                             1. / (- u)))
-        barrier_hessian = lambda u: (np.diag(-1. / ((scaling - u) ** 2.)
-                                             + 1. / (( - u) ** 2.)))
+        grad = lambda u: (conjugate_arg + center * u + scaling / (u**2 - u * scaling))
+                          #- (1. / (scaling - u) -
+                          #   1. / (- u)))
+        barrier_hessian = lambda u: center + np.diag(-scaling * (2 * u - scaling) / (u**2 - u * scaling)**2)
 
     else:
         #scaling = np.sqrt(np.diag(con_linear.dot(precision).dot(con_linear.T)))
         scaling = np.sqrt(np.diag(center))
         objective = lambda u: u.T.dot(conjugate_arg) + u.T.dot(center).dot(u) / 2. \
                               + np.log(1. + 1. / (( - u) / scaling)).sum()
-        grad = lambda u: ((conjugate_arg) + center.dot(u) - (scaling / (u * (scaling - u))))
+        grad = lambda u: ((conjugate_arg) + center.dot(u) + scaling / (u**2 - u * scaling))
         #grad = lambda u: (conjugate_arg) + center.dot(u) - (
         #        1. / (scaling - u) -
         #       1. / (-u))
-        barrier_hessian = lambda u:  np.diag(- scaling * (scaling - 2 * u) / (u**2 * (scaling - u)**2))
+        barrier_hessian = lambda u:  center + np.diag(-scaling * (2 * u - scaling) / (u**2 - u * scaling)**2)
          #(np.diag(-1. / ((scaling - u) ** 2.)+ 1. / (( - u) ** 2.)))
     if feasible_point is None:
         feasible_point = - 1. / scaling

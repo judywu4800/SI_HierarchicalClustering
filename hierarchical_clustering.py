@@ -407,7 +407,6 @@ class AgglomerativeClustering:
             #print("randomization_opt", randomization_opt)
             for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd)
                 # get the reconstructed X_grid from grid value
-                #print("grid value:", g)
                 X_grid = nuisance + g * sd * norm_nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
                 #print("X_grid",X_grid)
@@ -435,7 +434,7 @@ class AgglomerativeClustering:
                         else:
                             randomization_obs = rand_dict[(cluster2, cluster1)]
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-                        observed_opt_s_i = D_opt_obs - D_obs +  (randomization_opt - randomization_obs)#should be <0
+                        observed_opt_s_i = D_opt_obs - D_obs + (randomization_opt - randomization_obs)#should be <0
                         observed_opt.append(observed_opt_s_i)
 
                         implied_mean_s_i = D_opt_grid - D_grid
@@ -492,8 +491,7 @@ class AgglomerativeClustering:
         nu = self.compute_nu(node).reshape(-1,1)
         norm_nu = nu / (np.linalg.norm(nu))
         nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
-        stat_grid = np.linspace(0.00001, grid_width,
-                                    num=ngrid)
+        stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
         dir = self.compute_dirT(self.X.T@norm_nu)
         observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
         #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
@@ -501,7 +499,7 @@ class AgglomerativeClustering:
         #print("Projection error (should be close to 0):", projection_error)
 
         if ncoarse is not None:
-            coarse_grid = np.linspace(1, grid_width, ncoarse)
+            coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
             eval_grid = coarse_grid
         else:
             eval_grid = stat_grid
@@ -542,7 +540,7 @@ class AgglomerativeClustering:
                     num += density[g]
             p_value = num/sum
         else:
-            # print("Coarse grid")
+            #print("Coarse grid")
             approx_fn = interp1d(eval_grid,
                                  ref,
                                  kind='quadratic',
@@ -556,6 +554,36 @@ class AgglomerativeClustering:
                 logWeights[g] = (- 0.5 * (grid[g]) ** 2 + (p-1)*np.log(grid[g])
                         + (1 - p / 2) * np.log(2) + approx_fn(grid[g]))
                 sel_probs[g] = approx_fn(grid[g]) #selection probability
+
+            #to correct the numerical underflow when having low dimensionality
+            if np.min(sel_probs) <= -100:
+                #print((sel_probs))
+                indx_threshold = (np.where(sel_probs > -50)[0]).max()
+                grid_upper = grid[indx_threshold]
+                new_eval_grid = np.linspace(0.000001, grid_upper, 100)
+                #new_eval_grid = np.linspace(0.00001, grid_upper, ngrid)
+                ref = self._approx_log_reference(node=node,
+                                                 grid=new_eval_grid,
+                                                 nuisance=nuisance,
+                                                 dir=dir,
+                                                 sd=sd)
+
+                approx_fn = interp1d(new_eval_grid,
+                                     ref,
+                                     kind='quadratic',
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+
+
+                grid = np.linspace(0.000001, grid_upper, num=ngrid)
+                #print(np.max(grid))
+
+                sel_probs = np.zeros((ngrid,))
+                logWeights = np.zeros((ngrid,))
+                for g in range(ngrid):
+                    logWeights[g] = (- 0.5 * (grid[g]) ** 2 + (p - 1) * np.log(grid[g])
+                                     + (1 - p / 2) * np.log(2) + approx_fn(grid[g]))
+                    sel_probs[g] = approx_fn(grid[g])
 
             # normalize logWeights
             logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
