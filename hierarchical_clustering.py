@@ -466,19 +466,21 @@ class AgglomerativeClustering:
                 #print("covariance", implied_cov)
                 #print("prec", prec)
                 #start = time.time()
+                #'''
                 sel_prob, _, _ = solve_barrier_tree_nonneg(Q=implied_mean,
                                                            precision=prec,
                                                            feasible_point=None)
-                #end = time.time()
-                #print("time: ", end - start)
+                #'''
+                '''
+                o = cp.Variable(n_opt)
+                objective = cp.Minimize(cp.quad_form(o-implied_mean, prec))
+                constraints = [o<=0]
+                prob = cp.Problem(objective, constraints)
+                prob.solve()
+                ref_hat[g_idx] += (-0.5 * prob.value)
+                '''
                 const_term = (implied_mean).T.dot(prec).dot(implied_mean) / 2
-                #print("sel_prob", sel_prob)
-                #print("const_term", const_term)
                 ref_hat[g_idx] += (- sel_prob - const_term)
-                #print(- sel_prob - const_term)
-                #print(ref_hat)
-                #print("selection probability:", ref_hat[g_idx])
-                #print("conjugate norm:", np.linalg.norm(prec.dot(implied_mean)))
             #print(implied_means)
             #print("ref",ref_hat)
             if s>1:
@@ -565,8 +567,8 @@ class AgglomerativeClustering:
                 sel_probs[g] = approx_fn(grid[g]) #selection probability
 
             #to correct the numerical underflow when having low dimensionality
-
-            if np.min(sel_probs) <= -100:
+            '''
+                        if np.min(sel_probs) <= -100:
                 #print((sel_probs))
                 max_sel = np.max(sel_probs)
                 print(max_sel)
@@ -611,6 +613,8 @@ class AgglomerativeClustering:
                                      + (1 - p / 2) * np.log(2) + approx_fn(grid[g]))
                     sel_probs_new[g] = approx_fn(grid[g])
                 logWeights = logWeights_new.copy()
+            '''
+
 
 
             # normalize logWeights
@@ -666,8 +670,6 @@ class AgglomerativeClustering:
                 if (key == (node1,node2)) or (key == (node2,node1)):
                     return idx + 1
             return -1
-
-
 
         def get_cond_dist(mean, cov, cond_idx, rem_idx, rem_val,
                           sd_rand, rem_dim):
@@ -779,7 +781,7 @@ class AgglomerativeClustering:
                 observed_opt = np.array(observed_opt)
                 assert np.max(observed_opt) < 0
 
-                #reduced_dim: is d-r-1?
+                #reduced_dim: is the remaining dimension
                 obs_opt_order  = np.argsort(observed_opt)[::-1] #index of descending order: -O1,-O2,...,Od
                 top_d_idx = obs_opt_order[0:reduced_dim]
                 rem_d_idx = obs_opt_order[reduced_dim:]
