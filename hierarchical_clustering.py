@@ -1,6 +1,7 @@
 import random
 import sys
 import numpy as np
+from math import floor
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
 from itertools import combinations
@@ -656,7 +657,7 @@ class AgglomerativeClustering:
         return (p_value, observed_target, sel_probs,sel_probs_new,grid_upper,grid_lower)
         #return (p_value, observed_target, sel_probs_new)
 
-    def _condl_approx_log_reference(self, node, grid, nuisance,dir, sd=1, reduced_dim=5, use_CVXPY=True):
+    def _condl_approx_log_reference(self, node, grid, nuisance,dir, sd=1, reduced_prop=0.1, use_CVXPY=True):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
         # grid: each value is a grid value of ||nu^TX||_2/(sd*||nu||_2)
@@ -704,8 +705,10 @@ class AgglomerativeClustering:
         all_winning_pairs = self.get_all_winning_pairs()
         #print("all winning pairs: {}".format(all_winning_pairs))
 
-        ref_hat = np.zeros_like(grid)
-        marginal = np.zeros_like(grid)
+        #ref_hat = np.zeros_like(grid)
+        #marginal = np.zeros_like(grid)
+        ref_hat = np.zeros((len(grid),int(current_step)))
+        marginal = np.zeros((len(grid),int(current_step)))
 
         G_w_1 = p_node_1  #G^{(t)}_1 and G^{(t)}_2
         G_w_2 = p_node_2
@@ -780,6 +783,9 @@ class AgglomerativeClustering:
                 implied_mean = np.array(implied_mean)
                 observed_opt = np.array(observed_opt)
                 assert np.max(observed_opt) < 0
+                n_opt = len(implied_mean)
+                reduced_dim = max(1,floor(reduced_prop * n_opt))
+                # make sure that each layer has at least 1 variable is not conditioned on
 
                 #reduced_dim: is the remaining dimension
                 obs_opt_order  = np.argsort(observed_opt)[::-1] #index of descending order: -O1,-O2,...,Od
@@ -825,7 +831,7 @@ class AgglomerativeClustering:
                         prob = cp.Problem(objective, constraints)
                         # Solve the problem
                         prob.solve()
-                        ref_hat[g_idx] += (-0.5 * prob.value)
+                        ref_hat[g_idx,s-1] += (-0.5 * prob.value)
 
                     # Add omitted term
                     log_marginal = (get_log_pdf(observed_opt=observed_opt,
@@ -834,7 +840,8 @@ class AgglomerativeClustering:
                                                 rem_idx=rem_d_idx,
                                                 sd_rand=sd_rand,
                                                 rem_dim=n_opt - reduced_dim))
-                    marginal[g_idx] += log_marginal
+                    marginal[g_idx,s-1] += log_marginal
+                    #print(marginal[g_idx,s-1])
                     #marginal_depth.append(log_marginal)
 
             if s>1:
@@ -846,10 +853,10 @@ class AgglomerativeClustering:
 
             #ref_hat -= np.max(ref_hat)
             #marginal -= np.max(marginal)
-        return np.array(ref_hat), np.array(marginal)
+        return (ref_hat), (marginal)
 
     def condl_merge_inference(self, node, ngrid=1000, ncoarse=20, grid_width=15,
-                        sd=1,reduced_dim=5,use_cvxpy = True):
+                        sd=1,reduced_prop=0.1,use_cvxpy = True):
 
         nu = self.compute_nu(node).reshape(-1, 1)
         norm_nu = nu / (np.linalg.norm(nu))
@@ -872,7 +879,7 @@ class AgglomerativeClustering:
                                          nuisance=nuisance,
                                          dir=dir,
                                          sd=sd,
-                                         reduced_dim= reduced_dim,
+                                         reduced_prop= reduced_prop,
                                          use_CVXPY=use_cvxpy)  # gives log (\hat{\Lambda}(g))
         # the log correction term for each grid value
         if ncoarse is None:
@@ -883,8 +890,8 @@ class AgglomerativeClustering:
                 # Evaluate the log pdf as a sum of (log) gaussian pdf
                 # and (log) reference measure
                 logWeights[g] = (- 0.5 * (stat_grid[g]) ** 2 + (p - 1) * np.log(stat_grid[g])
-                                 - (p / 2 - 1) * np.log(2) + ref[g] + mar[g])
-                sel_probs[g] = ref[g]+mar[g]
+                                 - (p / 2 - 1) * np.log(2) + np.sum(ref, axis=1)[g] + np.sum(mar, axis=1)[g])
+                sel_probs[g] = np.sum(ref, axis=1)[g] + np.sum(mar, axis=1)[g]
             # normalize logWeights
             logWeights = logWeights - np.max(logWeights)
             density = np.exp(logWeights) / gamma(p / 2) * np.linalg.norm(nu) * sd
@@ -897,19 +904,36 @@ class AgglomerativeClustering:
             p_value = num / sum
         else:
             # print("Coarse grid")
-            approx_fn = interp1d(eval_grid,
-                                 ref+mar,
+
+            grid = np.linspace(0.00001, grid_width, num=ngrid)
+            approx_fns =[]
+            approx_mar =[]
+            s = ref.shape[1]
+            sel_probs = np.zeros((ngrid, s))
+            mar_probs = np.zeros((ngrid, s))
+            logWeights = np.zeros((ngrid,))
+            for i in range(s):
+                ref_s = ref[:, i]
+                mar_s = mar[:, i]
+                approx_fn_ref = interp1d(eval_grid,
+                                 ref_s,
                                  kind='quadratic',
                                  bounds_error=False,
                                  fill_value='extrapolate')
-            grid = np.linspace(0.00001, grid_width, num=ngrid)
-            sel_probs = np.zeros((ngrid,))
-            logWeights = np.zeros((ngrid,))
+                approx_fn_mar = interp1d(eval_grid,
+                                         mar_s,
+                                         kind='quadratic',
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+                approx_fns.append(approx_fn_ref)
+                approx_mar.append(approx_fn_mar)
+
             p = self.p
             for g in range(ngrid):
+                sel_probs[g,:] = [fn(grid[g]) for fn in approx_fns]
+                mar_probs[g,:] = [fn(grid[g]) for fn in approx_mar]
                 logWeights[g] = (- 0.5 * (grid[g]) ** 2 + (p - 1) * np.log(grid[g])
-                                 + (1 - p / 2) * np.log(2) + approx_fn(grid[g]))
-                sel_probs[g] = approx_fn(grid[g])  # selection probability
+                                 + (1 - p / 2) * np.log(2) + np.sum(sel_probs,axis=1)[g])
 
             # normalize logWeights
             logWeights -= np.max(logWeights)  # Shift values up to prevent underflow
