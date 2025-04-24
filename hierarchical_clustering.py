@@ -11,6 +11,7 @@ from scipy.special import gammaln, logsumexp,gamma
 import time
 import cvxpy as cp
 
+#exponential mechanism
 
 
 class ClusterNode:
