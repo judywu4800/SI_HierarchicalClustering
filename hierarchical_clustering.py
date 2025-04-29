@@ -49,11 +49,6 @@ class AgglomerativeClustering:
         # Dictionary saving all distances
         # key:
         # item:
-        self.randomization_log = {}
-        # Nested dictionary saving all randomization terms
-        # key: step from 1 to n-K
-        # item: dictionary of the randomization terms of all pairs at the step
-            #sub dictionary: key: cluster pair, item: randomization value
         self.labels = []
 
     def fit(self):
@@ -100,23 +95,13 @@ class AgglomerativeClustering:
                 #n1 = len(cluster1.points)
                 #n2 = len(cluster2.points)
                 idx = (i,j)
-
-                score = np.exp(-(1/self.tau) * distance_matrix[i, j])
+                D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
+                score = np.exp(-(1/self.tau) * D_ij)
                 scores.append(score)
                 pair_idxs.append(idx)
+                #print(idx, score)
 
-                #if self.step not in self.randomization_log:
-                #    self.randomization_log[self.step] = {}
-
-                # Update the inner dictionary with (cluster1, cluster2) as the key
-                #if (cluster1, cluster2) not in self.randomization_log[self.step]:
-                #    self.randomization_log[self.step][(cluster1, cluster2)] = random_term
-
-                #if randomized_distance < min_distance:
-                #    min_distance = randomized_distance
-                #    closest_clusters = (i, j)
-
-        scores_norm = scores/np.linalg.norm(scores, ord=1)
+        scores_norm = scores/np.sum(scores)
         index = range(len(pair_idxs))
         winning_cluster_idx = np.random.choice(index,1, p=scores_norm)[0]
         winning_cluster = pair_idxs[winning_cluster_idx]
@@ -413,7 +398,7 @@ class AgglomerativeClustering:
             for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd)
                 # get the reconstructed X_grid from grid value
                 #print("grid value: ", g)
-                cor_scores = [] #the vector [p_1,....,p_d]
+                cor_scores = [] #the vector [p_1,....,p_d], first item is always the optimal
                 X_grid = nuisance + g * sd * norm_nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
                 score_opt = np.exp((-1/self.tau)*D_opt_grid)
@@ -437,7 +422,7 @@ class AgglomerativeClustering:
         return np.array(cor_prob)
 
 
-    def merge_inference(self, node, ngrid = 1000, ncoarse = 20, grid_width = 15,
+    def merge_inference(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15,
                             sd = 1):
 
         nu = self.compute_nu(node).reshape(-1,1)
@@ -449,7 +434,7 @@ class AgglomerativeClustering:
         #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
         #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
         #print("Projection error (should be close to 0):", projection_error)
-
+        #print("obs:",observed_target)
         if ncoarse is not None:
             coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
             eval_grid = coarse_grid
@@ -459,8 +444,8 @@ class AgglomerativeClustering:
         if ncoarse is None:
             sel_probs = self._sel_correction(node,stat_grid,nuisance,dir)
             p = self.p
-            log_prior = (p/2 - 1) * np.log(stat_grid) - 0.5 * stat_grid**2 - (p/2) * np.log(2) - np.log(gamma(p/2))
-            log_post = log_prior + sel_probs
+            log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
+            log_post = log_prior #+ sel_probs
             log_post -= np.max(log_post)
             posterior = np.exp(log_post)
 
@@ -483,11 +468,12 @@ class AgglomerativeClustering:
             log_prior = np.zeros(ngrid)
             p = self.p
             for g in range(ngrid):
-                log_prior[g] = (p/2 - 1) * np.log(grid[g]) - 0.5 * grid[g]**2 - (p/2) * np.log(2) - np.log(gamma(p/2))
+                log_prior[g] = (p - 1) * np.log(grid[g]) - 0.5 * grid[g]**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
                 sel_probs[g] = approx_fn(grid[g]) #selection probability
 
             log_posterior = log_prior + sel_probs
-            log_posterior -= np.max(log_posterior)
+            #chi = np.exp(log_prior)
+            #log_posterior -= np.max(log_posterior)
             posterior = np.exp(log_posterior)
 
             sum = 0
