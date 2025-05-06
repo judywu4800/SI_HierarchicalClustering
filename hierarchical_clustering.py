@@ -89,23 +89,38 @@ class AgglomerativeClustering:
         scores = []
         pair_idxs = []
 
-        for i in range(len(self.cluster_nodes)):
-            for j in range(i + 1, len(self.cluster_nodes)):
-                cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
-                #n1 = len(cluster1.points)
-                #n2 = len(cluster2.points)
-                idx = (i,j)
-                D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
-                score = np.exp(-(1/self.tau) * D_ij)
-                scores.append(score)
-                pair_idxs.append(idx)
-                #print(idx, score)
+        if self.tau!=0:
+            for i in range(len(self.cluster_nodes)):
+                for j in range(i + 1, len(self.cluster_nodes)):
+                    cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
+                    #n1 = len(cluster1.points)
+                    #n2 = len(cluster2.points)
+                    idx = (i,j)
+                    D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
+                    score = np.exp(-(1/self.tau) * D_ij)
+                    scores.append(score)
+                    pair_idxs.append(idx)
+                    #print(idx, score)
 
-        scores_norm = scores/np.sum(scores)
-        index = range(len(pair_idxs))
-        winning_cluster_idx = np.random.choice(index,1, p=scores_norm)[0]
-        winning_cluster = pair_idxs[winning_cluster_idx]
-        return winning_cluster
+            scores_norm = scores/np.sum(scores)
+            index = range(len(pair_idxs))
+            winning_cluster_idx = np.random.choice(index,1, p=scores_norm)[0]
+            winning_cluster = pair_idxs[winning_cluster_idx]
+            return winning_cluster
+        else:
+            min_distance = np.inf
+            closest_clusters = (-1, -1)
+
+            for i in range(len(self.cluster_nodes)):
+                for j in range(i + 1, len(self.cluster_nodes)):
+                    cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
+                    distance = distance_matrix[i, j]
+
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_clusters = (i, j)
+            return closest_clusters
+
 
     def _merge_clusters(self, i, j, distance_matrix, data=None):
         """Merge two clusters and update the distance matrix."""
@@ -424,29 +439,78 @@ class AgglomerativeClustering:
 
     def merge_inference(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15,
                             sd = 1):
+        if self.tau!=0:
+            nu = self.compute_nu(node).reshape(-1,1)
+            norm_nu = nu / (np.linalg.norm(nu))
+            nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
+            stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+            dir = self.compute_dirT(self.X.T@norm_nu)
+            observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
+            #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
+            #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
+            #print("Projection error (should be close to 0):", projection_error)
+            #print("obs:",observed_target)
+            if ncoarse is not None:
+                coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
+                eval_grid = coarse_grid
+            else:
+                eval_grid = stat_grid
 
-        nu = self.compute_nu(node).reshape(-1,1)
-        norm_nu = nu / (np.linalg.norm(nu))
-        nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
-        stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
-        dir = self.compute_dirT(self.X.T@norm_nu)
-        observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
-        #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
-        #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
-        #print("Projection error (should be close to 0):", projection_error)
-        #print("obs:",observed_target)
-        if ncoarse is not None:
-            coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
-            eval_grid = coarse_grid
+            if ncoarse is None:
+                sel_probs = self._sel_correction(node,stat_grid,nuisance,dir)
+                p = self.p
+                log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
+                log_post = log_prior + sel_probs
+                log_post -= np.max(log_post)
+                posterior = np.exp(log_post)
+
+                sum = 0
+                num = 0
+                for g in range(ngrid):
+                    sum += posterior[g]
+                    if stat_grid[g] >= observed_target:
+                        num += posterior[g]
+                p_value = num/sum
+            else:
+                sel_probs_coarse = self._sel_correction(node,eval_grid,nuisance,dir)
+                approx_fn = interp1d(eval_grid,
+                                     sel_probs_coarse,
+                                     kind='quadratic',
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+                grid = np.linspace(0.00001, grid_width, num=ngrid)
+                sel_probs = np.zeros(ngrid)
+                log_prior = np.zeros(ngrid)
+                p = self.p
+                for g in range(ngrid):
+                    log_prior[g] = (p - 1) * np.log(grid[g]) - 0.5 * grid[g]**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
+                    sel_probs[g] = approx_fn(grid[g]) #selection probability
+
+                log_posterior = log_prior + sel_probs
+                #chi = np.exp(log_prior)
+                #log_posterior -= np.max(log_posterior)
+                posterior = np.exp(log_posterior)
+
+                sum = 0
+                num = 0
+                for g in range(ngrid):
+                    sum += posterior[g]
+                    if grid[g] >= observed_target:
+                        num += posterior[g]
+                p_value = num/sum
         else:
-            eval_grid = stat_grid
+            nu = self.compute_nu(node).reshape(-1,1)
+            norm_nu = nu / (np.linalg.norm(nu))
+            nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
+            stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+            dir = self.compute_dirT(self.X.T@norm_nu)
+            observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd)
 
-        if ncoarse is None:
-            sel_probs = self._sel_correction(node,stat_grid,nuisance,dir)
+            sel_probs = 0
             p = self.p
-            log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
-            log_post = log_prior #+ sel_probs
-            log_post -= np.max(log_post)
+            log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid ** 2 - (p / 2 - 1) * np.log(2) - np.log(
+            gamma(p / 2))
+            log_post = log_prior
             posterior = np.exp(log_post)
 
             sum = 0
@@ -455,52 +519,6 @@ class AgglomerativeClustering:
                 sum += posterior[g]
                 if stat_grid[g] >= observed_target:
                     num += posterior[g]
-            p_value = num/sum
-        else:
-            sel_probs_coarse = self._sel_correction(node,eval_grid,nuisance,dir)
-            approx_fn = interp1d(eval_grid,
-                                 sel_probs_coarse,
-                                 kind='quadratic',
-                                 bounds_error=False,
-                                 fill_value='extrapolate')
-            grid = np.linspace(0.00001, grid_width, num=ngrid)
-            sel_probs = np.zeros(ngrid)
-            log_prior = np.zeros(ngrid)
-            p = self.p
-            for g in range(ngrid):
-                log_prior[g] = (p - 1) * np.log(grid[g]) - 0.5 * grid[g]**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
-                sel_probs[g] = approx_fn(grid[g]) #selection probability
-
-            log_posterior = log_prior + sel_probs
-            #chi = np.exp(log_prior)
-            #log_posterior -= np.max(log_posterior)
-            posterior = np.exp(log_posterior)
-
-            sum = 0
-            num = 0
-            for g in range(ngrid):
-                sum += posterior[g]
-                if grid[g] >= observed_target:
-                    num += posterior[g]
-            p_value = num/sum
-
-        """if np.isnan(logWeights).sum() != 0:
-            print("logWeights contains nan")
-        elif (logWeights == np.inf).sum() != 0:
-            print("logWeights contains inf")
-        elif (np.asarray(ref) == np.inf).sum() != 0:
-            print("ref contains inf")
-        elif (np.asarray(ref) == -np.inf).sum() != 0:
-            print("ref contains -inf")
-        elif np.isnan(np.asarray(ref)).sum() != 0:
-            print("ref contains nan")"""
-
-        """interval = (condl_density.equal_tailed_interval
-                        (observed=contrast.T @ self.y,
-                         alpha=1-level))
-        if np.isnan(interval[0]) or np.isnan(interval[1]):
-            print("Failed to construct intervals: nan")"""
+            p_value = num / sum
 
         return (p_value, observed_target, sel_probs)
-        #return (p_value, observed_target, sel_probs_new)
-
