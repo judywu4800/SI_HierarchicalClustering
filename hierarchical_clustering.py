@@ -1,15 +1,12 @@
-import random
-import sys
+
 import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
 from itertools import combinations
-from Utils.barrier_affine import solve_barrier_tree_nonneg,solve_barrier_tree_box_PGD
-from Utils.discrete_family import discrete_family
 from scipy.interpolate import interp1d
-from scipy.special import gammaln, logsumexp,gamma
-import time
-import cvxpy as cp
+from scipy.special import gamma
+
+
 
 #exponential mechanism
 
