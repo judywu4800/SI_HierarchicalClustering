@@ -1,10 +1,11 @@
+
 import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
 from itertools import combinations
 from scipy.interpolate import interp1d
 from scipy.special import gamma
-from scipy.stats import f
+
 
 
 #exponential mechanism
@@ -56,24 +57,24 @@ class AgglomerativeClustering:
     def fit(self):
         self.n_samples = self.X.shape[0]
         self.cluster_nodes = [ClusterNode(points=[i]) for i in
-                              range(self.n_samples)]  #initial step: each point as a cluster
+                              range(self.n_samples)]  # initial step: each point as a cluster
         for i, node in enumerate(self.cluster_nodes):
             self.node_to_id[node] = i
 
-        self.distance_matrix = self._compute_distance_matrix()  #initial
+        self.distance_matrix = self._compute_distance_matrix()  # initial
 
         while len(self.cluster_nodes) > self.n_clusters:
             current_clusters = self.cluster_nodes.copy()
             self.step += 1
             # Find the two closest clusters
             i, j = self._find_winning_clusters(self.distance_matrix)
-            #print("i",i)
-            #print("j",j)
+            # print("i",i)
+            # print("j",j)
             self.existing_clusters_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = current_clusters.copy()
             self._merge_clusters(i, j, self.distance_matrix)
-            #print(self.distance_matrix)
+            # print(self.distance_matrix)
 
-        self.K_clusters = self.cluster_nodes.copy() #store the final K cluster
+        self.K_clusters = self.cluster_nodes.copy()  # store the final K cluster
 
         if len(self.cluster_nodes) > 1:
             self._complete_dendrogram_construction()
@@ -91,7 +92,6 @@ class AgglomerativeClustering:
             self._merge_clusters(i, j, self.distance_matrix)
         self.root = self.cluster_nodes[0]
         self.final_step = self.step
-
     def _compute_distance_matrix(self, data=None):
         """Compute the initial distance matrix for all points."""
         if data is None:
@@ -114,6 +114,8 @@ class AgglomerativeClustering:
             for i in range(len(self.cluster_nodes)):
                 for j in range(i + 1, len(self.cluster_nodes)):
                     cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
+                    #n1 = len(cluster1.points)
+                    #n2 = len(cluster2.points)
                     idx = (i,j)
                     D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
                     score = np.exp(-(1/self.tau) * D_ij)
@@ -156,7 +158,6 @@ class AgglomerativeClustering:
 
         self.cluster_nodes.append(new_node)
 
-        # update linkage matrix for dendrogram
         new_node_id = self.cluster_id_counter
         self.node_to_id[new_node] = new_node_id
         self.cluster_id_counter += 1
@@ -173,49 +174,66 @@ class AgglomerativeClustering:
         # Update the distance matrix
         self.distance_matrix = self._update_distance_matrix(distance_matrix, new_node, i, j, data)
 
-
         # Remove the merged clusters from the list
         self.cluster_nodes.pop(max(i, j))  # Remove the higher index first
         self.cluster_nodes.pop(min(i, j))  # Then remove the lower index
 
+    def plot_dendrogram(self, **kwargs):
+        import matplotlib.pyplot as plt
+        from scipy.cluster.hierarchy import dendrogram
+        linkage_matrix = np.array(self.linkage_matrix)
+        K = self.n_clusters
+        cut_index = len(linkage_matrix) - K
+        cut_height = linkage_matrix[cut_index, 2]
 
+        plt.figure(figsize=(10, 5))
+        dendrogram(linkage_matrix)
+        #plt.axhline(y=cut_height, c='red', linestyle='--', label=f'Cut for K={K}')
+        #plt.legend()
+        plt.show()
 
     def _update_distance_matrix(self, distance_matrix, new_node, i, j, data=None):
-        """
-        Update the distance matrix after merging clusters.
-        All other entries stay the same, only need to update the distance related to new node
-        """
-        if data is None:
-            data = self.X
+            """
+            Update the distance matrix after merging clusters.
+            All other entries stay the same, only need to update the distance related to new node
+            """
+            if data is None:
+                data = self.X
 
-        new_size = distance_matrix.shape[0] + 1
-        new_distance_matrix = np.zeros((new_size, new_size))
+            new_size = distance_matrix.shape[0] + 1
+            new_distance_matrix = np.zeros((new_size, new_size))
 
-        new_distance_matrix[:new_size - 1, :new_size - 1] = distance_matrix
+            new_distance_matrix[:new_size - 1, :new_size - 1] = distance_matrix
 
-        # Compute new distances from the new node to all remaining clusters
-        for k in range(len(self.cluster_nodes)):
-            if k == i or k == j:
-                continue
-            # Compute distance between new_node and cluster k
-            dist = self._calculate_linkage_distance(new_node, self.cluster_nodes[k], data)
-            new_distance_matrix[new_size - 1, k] = dist
-            new_distance_matrix[k, new_size - 1] = dist
-            self.distance_log[(new_node, self.cluster_nodes[k])] = dist
+            # Compute new distances from the new node to all remaining clusters
+            for k in range(len(self.cluster_nodes)):
+                if k == i or k == j:
+                    continue
+                # Compute distance between new_node and cluster k
+                dist = self._calculate_linkage_distance(new_node, self.cluster_nodes[k], data)
+                new_distance_matrix[new_size - 1, k] = dist
+                new_distance_matrix[k, new_size - 1] = dist
+                self.distance_log[(new_node, self.cluster_nodes[k])] = dist
 
-        # Remove the old distances
-        distance_matrix = np.delete(new_distance_matrix, (i, j), axis=0)
-        distance_matrix = np.delete(distance_matrix, (i, j), axis=1)
-        return distance_matrix
+            # Remove the old distances
+            distance_matrix = np.delete(new_distance_matrix, (i, j), axis=0)
+            distance_matrix = np.delete(distance_matrix, (i, j), axis=1)
+            return distance_matrix
 
     def get_cluster_labels(self):
         """Extract cluster labels for each point."""
         labels = np.zeros(self.n_samples, dtype=int)
-        for cluster_id, node in enumerate(self.K_clusters):
+        for cluster_id, node in enumerate(self.cluster_nodes):
             for point in node.points:
                 labels[point] = cluster_id
         self.labels = labels
         return labels
+
+    def compute_silhouette_score(self):
+        """Compute the Silhouette Score for the clustering."""
+        labels = self.get_cluster_labels()
+        score = silhouette_score(self.X, labels, metric=self.affinity)
+        return score
 
     def compute_wcss(self):
         """Compute the Within-Cluster Sum of Squares (WCSS) for the clustering."""
@@ -237,20 +255,6 @@ class AgglomerativeClustering:
         tss = np.sum((self.X - overall_mean) ** 2)
         bcss = tss - wcss
         return bcss
-
-    def plot_dendrogram(self, **kwargs):
-        import matplotlib.pyplot as plt
-        from scipy.cluster.hierarchy import dendrogram
-        linkage_matrix = np.array(self.linkage_matrix)
-        K = self.n_clusters
-        cut_index = len(linkage_matrix) - K
-        cut_height = linkage_matrix[cut_index, 2]
-
-        plt.figure(figsize=(10, 5))
-        dendrogram(linkage_matrix)
-        #plt.axhline(y=cut_height, c='red', linestyle='--', label=f'Cut for K={K}')
-        #plt.legend()
-        plt.show()
 
     def _calculate_linkage_distance(self, new_node, cluster, data=None):
         """Calculate the distance between clusters based on the chosen linkage method."""
@@ -408,10 +412,19 @@ class AgglomerativeClustering:
         nu[G_2] -= 1 / n_G2
         return nu
 
-    def _sel_correction(self, node, grid, P2, R0, R1, S):
+    def compute_dirT(self,w):
+        # return dir(w)^T
+        norm = np.linalg.norm(w)
+        dir_w = (w / norm) if norm != 0 else np.zeros_like(w)
+        return dir_w.T
+
+    def _sel_correction(self, node, grid, nuisance,dir, sd=1):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
-        # grid: each value is a grid value
+        # grid: each value is a grid value of ||nu^TX||_2/(sd*||nu||_2)
+        # contrast: nu^TX
+        # nuisance: \pi_\nu X
+        # X = nuisance + g * sd *nu * dir(contrast)
 
         def find_current_step(node1,node2):
             dictionary = self.existing_clusters_log
@@ -423,10 +436,8 @@ class AgglomerativeClustering:
         #get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
-        m = len(p_node_1.points) + len(p_node_2.points)
-        nu = self.compute_nu(node)
-        nu_norm = np.linalg.norm(nu)
-        print("m: ",m)
+        nu = self.compute_nu(node).reshape(-1, 1)
+        norm_nu = nu / (np.linalg.norm(nu)) # normlize nu to make it of norm 1
         current_step = find_current_step(p_node_1, p_node_2)
         #print("current step: {}".format(current_step))
         all_winning_pairs = self.get_all_winning_pairs()
@@ -436,7 +447,6 @@ class AgglomerativeClustering:
         G_w_1 = p_node_1  #G^{(t)}_1 and G^{(t)}_2
         G_w_2 = p_node_2
         s = current_step  #going from top level to the beginning
-        corrections = np.zeros((len(grid),s))
         while s > 0:
             print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
@@ -448,12 +458,11 @@ class AgglomerativeClustering:
             else:
                 clusters_s = self.existing_clusters_log[merged_pair_r]
 
-            for g_idx, g in enumerate(grid):
+            for g_idx, g in enumerate(grid):  #g = ||\nu^T X||_2/(norm(nu)*sd)
                 # get the reconstructed X_grid from grid value
                 #print("grid value: ", g)
                 cor_scores = [] #the vector [p_1,....,p_d], first item is always the optimal
-                p=self.p
-                X_grid = (np.sqrt((g)/(m-2+(g))) * R0 + np.sqrt((m-2)/(m-2+(g))) * R1) *np.sqrt(S) + P2 @ self.X
+                X_grid = nuisance + g * sd * norm_nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
                 score_opt = np.exp((-1/self.tau)*D_opt_grid)
                 cor_scores.append(score_opt)
@@ -463,12 +472,9 @@ class AgglomerativeClustering:
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
                         score_grid = np.exp((-1/self.tau)*D_grid)
                         cor_scores.append(score_grid)
-                cor_scores = (cor_scores / np.sum(cor_scores)) #normalization
+                cor_scores = (cor_scores / np.sum(cor_scores))
                 #cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
-                cor_prob[g_idx] = np.log(cor_scores[0])
-               # cor_prob[g_idx] += np.log(cor_scores[0])
-
-            corrections[:,s-1] += cor_prob
+                cor_prob[g_idx] += np.log(cor_scores[0])
 
             if s>1:
                 winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
@@ -476,138 +482,35 @@ class AgglomerativeClustering:
                 G_w_2 = winning_pair_s[1]
 
             s -= 1
-        return np.array(corrections)
-        #return np.array(cor_prob)
+        return np.array(cor_prob)
 
 
-    def merge_inference(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15):
-        def create_indicator_diagonal_matrix(index_list, n):
-            diag = np.zeros(n)
-            diag[index_list] = 1
-            return np.diag(diag), diag
-
+    def merge_inference(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15,
+                            sd = 1):
         if self.tau!=0:
             nu = self.compute_nu(node).reshape(-1,1)
-            nu_norm = np.linalg.norm(nu)
-            p_node_1 = node.left
-            p_node_2 = node.right
-            m = len(p_node_1.points)+len(p_node_2.points)
-            print("size: ",m)
-            if m==2:
-                p_value = np.nan
-                observed_target = np.nan
-                sel_probs = np.nan
-
+            norm_nu = nu / (np.linalg.norm(nu))
+            nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
+            stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+            dir = self.compute_dirT(self.X.T@norm_nu)
+            observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd) # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
+            #print("Are they close?", np.allclose(self.X, nuisance + observed_target * sd * norm_nu @ dir.reshape(1, -1)))
+            #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
+            #print("Projection error (should be close to 0):", projection_error)
+            #print("obs:",observed_target)
+            if ncoarse is not None:
+                coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
+                eval_grid = coarse_grid
             else:
-                P0 = nu@nu.T / np.linalg.norm(nu)**2
-                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points,self.n)
-                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points,self.n)
-                P1 = (I1 - one1@one1.T / len(p_node_1.points)) + (I2 - one2@one2.T / len(p_node_2.points))
-                P2 = np.eye(self.n) - P0 - P1
+                eval_grid = stat_grid
 
-                S = np.linalg.norm(P0 @ self.X, 'fro')**2 + np.linalg.norm(P1 @ self.X, 'fro')**2
-                R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
-                R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
-
-                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
-                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (np.linalg.norm(P1 @ self.X,'fro') ** 2)
-                #print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
-                #print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
-                #print(observed_target)
-                print("Are they close?", np.allclose(self.X, (np.sqrt(observed_target/(m-2+observed_target)) * R0 + np.sqrt((m-2)/(m-2+observed_target)) * R1) *np.sqrt(S) + P2 @ self.X))
-                #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
-                #print("Projection error (should be close to 0):", projection_error)
-                #print("obs:",observed_target)
-                if ncoarse is not None:
-                    coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
-                    eval_grid = coarse_grid
-                else:
-                    eval_grid = stat_grid
-
-                if ncoarse is None:
-                    sel_probs = self._sel_correction(node,stat_grid,P2, R0, R1, S)
-                    p = self.p
-                    log_prior = np.zeros(ngrid)
-                    for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=stat_grid[g], dfn=p, dfd=(m - 2) * p)
-                    log_post = log_prior + sel_probs
-                    posterior = np.exp(log_post)
-
-                    sum = 0
-                    num = 0
-                    for g in range(ngrid):
-                        sum += posterior[g]
-                        if stat_grid[g] >= observed_target:
-                            num += posterior[g]
-                    p_value = num/sum
-                else:
-                    sel_probs_coarse = self._sel_correction(node,eval_grid,P2, R0, R1, S)
-
-                    step = sel_probs_coarse.shape[1]
-                    grid = np.linspace(0.00001, grid_width, num=ngrid)
-                    sel_probs = np.zeros(ngrid)
-                    log_prior = np.zeros(ngrid)
-                    p = self.p
-
-                    for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
-
-                    for s in range(step):
-                        approx_fn = interp1d(eval_grid,
-                                         sel_probs_coarse[:,s],
-                                         kind='quadratic',
-                                         bounds_error=False,
-                                         fill_value='extrapolate')
-                        for g in range(ngrid):
-                            sel_probs[g] += approx_fn(grid[g]) #selection probability
-                    '''
-                    approx_fn = interp1d(eval_grid,
-                                         sel_probs_coarse,
-                                         kind='quadratic',
-                                         bounds_error=False,
-                                         fill_value='extrapolate')
-
-                    for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
-                        sel_probs[g] = approx_fn(grid[g])
-                    '''
-
-
-                    log_posterior = log_prior + sel_probs
-                    posterior = np.exp(log_posterior)
-
-                    posterior = posterior / np.max(posterior)
-                    sum = 0
-                    num = 0
-                    for g in range(ngrid):
-                        sum += posterior[g]
-                        if grid[g] >= (observed_target):
-                            num += posterior[g]
-                    p_value = num/sum
-        else:
-            nu = self.compute_nu(node).reshape(-1, 1)
-            p_node_1 = node.left
-            p_node_2 = node.right
-            m = len(p_node_1.points) + len(p_node_2.points)
-            if m==2:
-                p_value = np.nan
-                observed_target = np.nan
-                sel_probs = np.nan
-            else:
-                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
-                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
-                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
-                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
-
-                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
-                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / np.linalg.norm(P1 @ self.X,
-                                                                                                     'fro') ** 2
-
-                sel_probs = 0
+            if ncoarse is None:
+                sel_probs = self._sel_correction(node,stat_grid,nuisance,dir)
                 p = self.p
-                posterior = np.zeros(ngrid)
-                for g in range(ngrid):
-                    posterior[g] = f.pdf(stat_grid[g],p,(m-2)*p)
+                log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
+                log_post = log_prior + sel_probs
+                log_post -= np.max(log_post)
+                posterior = np.exp(log_post)
 
                 sum = 0
                 num = 0
@@ -615,6 +518,55 @@ class AgglomerativeClustering:
                     sum += posterior[g]
                     if stat_grid[g] >= observed_target:
                         num += posterior[g]
-                p_value = num / sum
+                p_value = num/sum
+            else:
+                sel_probs_coarse = self._sel_correction(node,eval_grid,nuisance,dir)
+                approx_fn = interp1d(eval_grid,
+                                     sel_probs_coarse,
+                                     kind='quadratic',
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+                grid = np.linspace(0.00001, grid_width, num=ngrid)
+                sel_probs = np.zeros(ngrid)
+                log_prior = np.zeros(ngrid)
+                p = self.p
+                for g in range(ngrid):
+                    log_prior[g] = (p - 1) * np.log(grid[g]) - 0.5 * grid[g]**2 - (p/2-1) * np.log(2) - np.log(gamma(p/2))
+                    sel_probs[g] = approx_fn(grid[g]) #selection probability
+
+                log_posterior = log_prior + sel_probs
+                #chi = np.exp(log_prior)
+                #log_posterior -= np.max(log_posterior)
+                posterior = np.exp(log_posterior)
+
+                sum = 0
+                num = 0
+                for g in range(ngrid):
+                    sum += posterior[g]
+                    if grid[g] >= observed_target:
+                        num += posterior[g]
+                p_value = num/sum
+        else:
+            nu = self.compute_nu(node).reshape(-1,1)
+            norm_nu = nu / (np.linalg.norm(nu))
+            nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ self.X
+            stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+            dir = self.compute_dirT(self.X.T@norm_nu)
+            observed_target = np.linalg.norm(self.X.T@norm_nu)/(sd)
+
+            sel_probs = 0
+            p = self.p
+            log_prior = (p - 1) * np.log(stat_grid) - 0.5 * stat_grid ** 2 - (p / 2 - 1) * np.log(2) - np.log(
+            gamma(p / 2))
+            log_post = log_prior
+            posterior = np.exp(log_post)
+
+            sum = 0
+            num = 0
+            for g in range(ngrid):
+                sum += posterior[g]
+                if stat_grid[g] >= observed_target:
+                    num += posterior[g]
+            p_value = num / sum
 
         return (p_value, observed_target, sel_probs)
