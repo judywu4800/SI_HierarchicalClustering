@@ -53,7 +53,7 @@ class AgglomerativeClustering:
         self.cluster_id_counter = self.n  # IDs for merged clusters start after sample indices
         self.node_to_id = {}
 
-    def fit(self):
+    def fit(self, dendrogram = False):
         self.n_samples = self.X.shape[0]
         self.cluster_nodes = [ClusterNode(points=[i]) for i in
                               range(self.n_samples)]  #initial step: each point as a cluster
@@ -75,7 +75,7 @@ class AgglomerativeClustering:
 
         self.K_clusters = self.cluster_nodes.copy() #store the final K cluster
 
-        if len(self.cluster_nodes) > 1:
+        if dendrogram and len(self.cluster_nodes) > 1:
             self._complete_dendrogram_construction()
 
     def _complete_dendrogram_construction(self):
@@ -248,6 +248,9 @@ class AgglomerativeClustering:
 
         plt.figure(figsize=(10, 5))
         dendrogram(linkage_matrix)
+        plt.title("Hierarchical Clustering Dendrogram with tau = {}".format(self.tau))
+        plt.xlabel("Sample Index")
+        plt.ylabel("Distance")
         #plt.axhline(y=cut_height, c='red', linestyle='--', label=f'Cut for K={K}')
         #plt.legend()
         plt.show()
@@ -426,7 +429,7 @@ class AgglomerativeClustering:
         m = len(p_node_1.points) + len(p_node_2.points)
         nu = self.compute_nu(node)
         nu_norm = np.linalg.norm(nu)
-        print("m: ",m)
+        #print("m: ",m)
         current_step = find_current_step(p_node_1, p_node_2)
         #print("current step: {}".format(current_step))
         all_winning_pairs = self.get_all_winning_pairs()
@@ -438,7 +441,7 @@ class AgglomerativeClustering:
         s = current_step  #going from top level to the beginning
         #corrections = np.zeros((len(grid),s))
         while s > 0:
-            print("level: ", s)
+            #print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
             #print("winning pair at this step: ", merged_pair)
             merged_pair_r = (G_w_2, G_w_1)
