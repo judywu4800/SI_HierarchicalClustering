@@ -204,9 +204,9 @@ def single_repeat(tau, label, n, p, sigma, K, layer, alpha, num_trials):
     mu = np.zeros(p)
     p_values = []
 
-    for _ in range(num_trials):
+    while len(p_values)<num_trials:
         X = generate_null_data(n, p, mu, sigma)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="single")
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="complete")
         model.fit()
 
         winning_nodes = list(model.existing_clusters_log.keys())
@@ -214,7 +214,8 @@ def single_repeat(tau, label, n, p, sigma, K, layer, alpha, num_trials):
         node = key[0].parent
 
         p_val, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=1000)
-        p_values.append(p_val)
+        if not np.isnan(p_val):
+            p_values.append(p_val)
 
     type_I_error = np.mean(np.array(p_values) < alpha)
     return {"Tau": tau, "Type": label, "Type I Error": type_I_error}
@@ -237,7 +238,7 @@ def check_type1_multi_tau_parallel(n, p, sigma, tau_list, K, layer, alpha=0.05, 
     plt.figure(figsize=(10, 6))
     sns.boxplot(data=df_results, x="Tau", y="Type I Error", hue="Type")
     plt.axhline(y=alpha, linestyle='--', color='red', label=f"Significance level α = {alpha}")
-    plt.title(f"Distribution of Type I Error Rates over {num_repeats} Repetitions (Layer {layer})")
+    plt.title(f"Distribution of Type I Error Rates over {num_repeats} Repetitions")
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend()
     plt.show()
@@ -283,7 +284,7 @@ def single_tau_power(tau, n, p, sigma, delta, alpha, num_trials, max_attempts=50
     while len(p_values) < num_trials:
         trial_count += 1
         X, true_labels = generate_3cluster_data(n=n, p=p, delta=delta, sigma=sigma)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=2, linkage="single")
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=2, linkage="complete")
         model.fit()
 
         winning_nodes = list(model.existing_clusters_log.keys())

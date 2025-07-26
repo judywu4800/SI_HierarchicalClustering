@@ -1,0 +1,11 @@
+Tau,Type,Type I Error
+0,Naive,0.75
+0.1,Randomized,0.0
+0.25,Randomized,0.0
+0.5,Randomized,0.0
+1,Randomized,0.1
+1.5,Randomized,0.05
+2,Randomized,0.05
+5,Randomized,0.0
+10,Randomized,0.05
+Gao et al.,Gao et al.,0.0
