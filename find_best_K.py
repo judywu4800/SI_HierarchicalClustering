@@ -1,5 +1,5 @@
 import numpy as np
-from hierarchical_clustering import AgglomerativeClustering
+from hierarchical_clustering_invariant import AgglomerativeClustering
 from utils import *
 import warnings
 import matplotlib.pyplot as plt

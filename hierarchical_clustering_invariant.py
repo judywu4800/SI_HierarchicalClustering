@@ -47,6 +47,7 @@ class AgglomerativeClustering:
         # item:
         self.labels = []
 
+        self.tau_t_log = []
         self.linkage_matrix = []
         # (n-1) x 4 matrix to draw dendrogram
         # id1, id2, randomized distance, # of points in the new cluster
@@ -109,18 +110,18 @@ class AgglomerativeClustering:
         closest_clusters = (-1, -1)
         scores = []
         pair_idxs = []
-
+        Ds = [] #array storing the pairwise distance
         if self.tau!=0:
             for i in range(len(self.cluster_nodes)):
                 for j in range(i + 1, len(self.cluster_nodes)):
                     cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                     idx = (i,j)
                     D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
-                    score = np.exp(-(1/self.tau) * D_ij)
-                    scores.append(score)
+                    Ds.append(D_ij)
                     pair_idxs.append(idx)
-                    #print(idx, score)
-
+            tau_t = self.tau * np.mean(Ds)
+            self.tau_t_log.append(tau_t)
+            scores = [np.exp(-(1/tau_t) * D_ij) for D_ij in Ds]
             scores_norm = scores/np.sum(scores)
             index = range(len(pair_idxs))
             winning_cluster_idx = np.random.choice(index,1, p=scores_norm)[0]
@@ -132,7 +133,6 @@ class AgglomerativeClustering:
 
             for i in range(len(self.cluster_nodes)):
                 for j in range(i + 1, len(self.cluster_nodes)):
-                    cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                     distance = distance_matrix[i, j]
 
                     if distance < min_distance:
@@ -461,17 +461,19 @@ class AgglomerativeClustering:
                 # get the reconstructed X_grid from grid value
                 #print("grid value: ", g)
                 cor_scores = [] #the vector [p_1,....,p_d], first item is always the optimal
-                p=self.p
+                Ds_grid = []
                 X_grid = (np.sqrt((g)/(m-2+(g))) * R0 + np.sqrt((m-2)/(m-2+(g))) * R1) *np.sqrt(S) + P2 @ self.X
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
-                score_opt = np.exp((-1/self.tau)*D_opt_grid)
-                cor_scores.append(score_opt)
+                Ds_grid.append(D_opt_grid)
+
                 pairs = combinations(clusters_s, 2)
                 for cluster1, cluster2 in pairs:
                     if not ((G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2)):
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-                        score_grid = np.exp((-1/self.tau)*D_grid)
-                        cor_scores.append(score_grid)
+                        Ds_grid.append(D_grid)
+
+                tau_t_grid = self.tau * np.mean(Ds_grid)
+                cor_scores = [np.exp(-(1/tau_t_grid) *  D_grid) for D_grid in Ds_grid]
                 cor_scores = (cor_scores / np.sum(cor_scores)) #normalization
                 #cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
                 cor_prob[g_idx] = np.log(cor_scores[0])
@@ -679,7 +681,7 @@ class AgglomerativeClustering:
         G_w_2 = p_node_2
         s = current_step  #going from top level to the beginning
         while s > 0:
-            print("level: ", s)
+            #print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
             #print("winning pair at this step: ", merged_pair)
             merged_pair_r = (G_w_2, G_w_1)
@@ -693,16 +695,19 @@ class AgglomerativeClustering:
                 # get the reconstructed X_grid from grid value
                 #print("grid value: ", g)
                 cor_scores = [] #the vector [p_1,....,p_d], first item is always the optimal
+                Ds_grid = []
                 X_grid = nuisance + g * sd * norm_nu @ dir.reshape(1, -1)
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
-                score_opt = np.exp((-1/self.tau)*D_opt_grid)
-                cor_scores.append(score_opt)
+                Ds_grid.append(D_opt_grid)
+
                 pairs = combinations(clusters_s, 2)
                 for cluster1, cluster2 in pairs:
                     if not ((G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2)):
                         D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-                        score_grid = np.exp((-1/self.tau)*D_grid)
-                        cor_scores.append(score_grid)
+                        Ds_grid.append(D_grid)
+
+                tau_t_grid = self.tau * np.mean(Ds_grid)
+                cor_scores = [np.exp(-(1/tau_t_grid)*D_grid) for D_grid in Ds_grid]
                 cor_scores = (cor_scores / np.sum(cor_scores))
                 #cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
                 cor_prob[g_idx] += np.log(cor_scores[0])

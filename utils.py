@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from hierarchical_clustering import AgglomerativeClustering
+from hierarchical_clustering_invariant import AgglomerativeClustering
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import multivariate_normal,f
@@ -83,7 +83,7 @@ def check_p_value_uniformity(n, p, sigma, K, tau, layer, linkage="complete", num
         winning_nodes = list(model.existing_clusters_log.keys())
         key = winning_nodes[layer]
         node = key[0].parent
-        p_value, obs, sel_corrected = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=2000)
+        p_value, obs, sel_corrected = model.merge_inference_F(node, grid_width=10, ncoarse=20, ngrid=2000)
         p_value_n = naive_p_value(X, K, layer, linkage)
         if not (np.isnan(p_value) and np.isnan(p_value_n)):
             p_values.append(p_value)
@@ -132,37 +132,36 @@ def check_p_value_uniformity(n, p, sigma, K, tau, layer, linkage="complete", num
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.show()
 
-def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer,linkage = "complete", num_trials=1000):
-    all_p_values = {}
-    all_p_values_n = {}
+def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer, linkage="complete", num_trials=1000):
+    all_p_values = {tau: [] for tau in tau_list}
+    naive_p_values = []
+
     mu = np.zeros(p)
 
-    for tau in tau_list:
-        p_values = []
-        p_values_n = []
+    for trial in range(num_trials):
+        X = generate_null_data(n, p, mu, sigma)
+        naive_val = naive_p_value(X, K, layer, linkage)
+        naive_p_values.append(naive_val)
 
-        for _ in range(num_trials):
-            X = generate_null_data(n, p, mu, sigma)
+        for tau in tau_list:
             model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage)
             model.fit()
 
             winning_nodes = list(model.existing_clusters_log.keys())
             key = winning_nodes[layer]
             node = key[0].parent
-            p_val, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=2000)
-            naive_val = naive_p_value(X, K, layer, linkage)
 
-            p_values.append(p_val)
-            p_values_n.append(naive_val)
+            p_val, _, _ = model.merge_inference_F(node, grid_width=5, ncoarse=20, ngrid=2000)
+            all_p_values[tau].append(p_val)
 
-        all_p_values[tau] = np.array(p_values)
-        all_p_values_n[tau] = np.array(p_values_n)
+    for tau in tau_list:
+        all_p_values[tau] = np.array(all_p_values[tau])
+    naive_p_values = np.array(naive_p_values)
 
-    # Histogram
     plt.figure(figsize=(10, 6))
     for tau in tau_list:
         plt.hist(all_p_values[tau], bins=20, density=True, alpha=0.4, label=f"Sel. (tau={tau})", edgecolor='black')
-        plt.hist(all_p_values_n[tau], bins=20, density=True, alpha=0.4, label=f"Naive (tau={tau})", edgecolor='gray', linestyle='dashed')
+    plt.hist(naive_p_values, bins=20, density=True, alpha=0.4, label=f"Naive", edgecolor='gray', linestyle='dashed')
     plt.axhline(1, color='red', linestyle='dashed', linewidth=2, label="Uniform(0,1)")
     plt.xlabel("P-value")
     plt.ylabel("Density")
@@ -171,11 +170,10 @@ def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer,linkage =
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.show()
 
-    # ECDF plot
     plt.figure(figsize=(10, 6))
     for tau in tau_list:
         sns.ecdfplot(all_p_values[tau], label=f"Sel. (tau={tau})", linestyle="-")
-        sns.ecdfplot(all_p_values_n[tau], label=f"Naive (tau={tau})", linestyle="--")
+    sns.ecdfplot(naive_p_values, label="Naive", linestyle="--")
     plt.plot([0, 1], [0, 1], linestyle="--", color="red", label="Expected (Uniform)")
     plt.xlabel("P-value")
     plt.ylabel("ECDF")
@@ -184,14 +182,14 @@ def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer,linkage =
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.show()
 
-    # Q-Q Plot
+
     plt.figure(figsize=(10, 6))
     theoretical_quantiles = np.linspace(0, 1, num_trials)
     for tau in tau_list:
         sorted_sel = np.sort(all_p_values[tau])
-        sorted_naive = np.sort(all_p_values_n[tau])
         plt.plot(theoretical_quantiles, sorted_sel, marker='o', linestyle='', label=f"Sel. (tau={tau})")
-        plt.plot(theoretical_quantiles, sorted_naive, marker='x', linestyle='', label=f"Naive (tau={tau})")
+    sorted_naive = np.sort(naive_p_values)
+    plt.plot(theoretical_quantiles, sorted_naive, marker='x', linestyle='', label="Naive")
     plt.plot([0, 1], [0, 1], linestyle="--", color="red", label="Expected (Uniform)")
     plt.xlabel("Theoretical Uniform Quantiles")
     plt.ylabel("Empirical P-values")
@@ -200,6 +198,44 @@ def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer,linkage =
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.show()
 
+def run_trial(n, p, sigma, K, tau_list, layer, linkage):
+    X = generate_null_data(n, p, np.zeros(p), sigma)
+    trial_results = {}
+
+    naive_val = naive_p_value(X, K, layer, linkage)
+    trial_results['naive'] = naive_val
+
+    for tau in tau_list:
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage)
+        model.fit()
+        winning_nodes = list(model.existing_clusters_log.keys())
+        key = winning_nodes[layer]
+        node = key[0].parent
+        p_val, _, _ = model.merge_inference_F(node, grid_width=5, ncoarse=20, ngrid=2000)
+        trial_results[tau] = p_val
+
+    return trial_results
+
+def check_p_value_uniformity_multi_tau_parallel(n, p, sigma, K, tau_list, layer,
+                                                linkage="complete", num_trials=1000, n_jobs=-1):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(run_trial)(n, p, sigma, K, tau_list, layer, linkage)
+        for _ in range(num_trials)
+    )
+
+    all_p_values = {tau: [] for tau in tau_list}
+    naive_p_values = []
+
+    for res in results:
+        naive_p_values.append(res['naive'])
+        for tau in tau_list:
+            all_p_values[tau].append(res[tau])
+
+    for tau in tau_list:
+        all_p_values[tau] = np.array(all_p_values[tau])
+    naive_p_values = np.array(naive_p_values)
+
+    return all_p_values, naive_p_values
 def single_repeat(tau, label, n, p, sigma, K, layer, alpha, num_trials):
     mu = np.zeros(p)
     p_values = []
@@ -213,7 +249,7 @@ def single_repeat(tau, label, n, p, sigma, K, layer, alpha, num_trials):
         key = winning_nodes[layer]
         node = key[0].parent
 
-        p_val, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=1000)
+        p_val, _, _ = model.merge_inference_F(node, grid_width=5, ncoarse=20, ngrid=1000)
         if not np.isnan(p_val):
             p_values.append(p_val)
 
@@ -276,12 +312,12 @@ def generate_3cluster_data(n=30, p=2, delta=1.0, sigma=1.0, random_state=None, r
 
 
 
-def single_tau_power(tau, n, p, sigma, delta, alpha, num_trials, max_attempts=50000):
+def single_tau_power(tau, n, p, sigma, delta, alpha, num_trials=500, max_attempts=50000):
     p_values = []
     recovery = 0
     trial_count = 0
 
-    while len(p_values) < num_trials:
+    for _ in range(num_trials):
         trial_count += 1
         X, true_labels = generate_3cluster_data(n=n, p=p, delta=delta, sigma=sigma)
         model = AgglomerativeClustering(X, tau=tau, n_clusters=2, linkage="complete")
@@ -301,18 +337,20 @@ def single_tau_power(tau, n, p, sigma, delta, alpha, num_trials, max_attempts=50
             node = c1.parent
             p_val, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=1000)
             p_values.append(p_val)
-
+        '''
         if trial_count > max_attempts:
             print(f"Warning: Too few matching merges at tau={tau}")
             break
+        '''
+
 
     power = np.mean(np.array(p_values) < alpha)
-    recovery_prob = recovery / trial_count
+    recovery_prob = recovery / num_trials
     success = len(p_values) == num_trials
     return tau, power, recovery_prob, success
 
 def check_power_multi_tau_parallel(n, p, sigma, tau_list, delta=10.0, alpha=0.05,
-                                    num_trials=300, n_jobs=-1):
+                                    num_trials=500, n_jobs=-1):
     results = Parallel(n_jobs=n_jobs)(
         delayed(single_tau_power)(tau, n, p, sigma, delta, alpha, num_trials)
         for tau in tau_list
@@ -368,3 +406,79 @@ def check_power_multi_tau_parallel(n, p, sigma, tau_list, delta=10.0, alpha=0.05
 
     return power_results_sel, recovery_results, full
 
+def single_delta_power(delta, n, p, sigma, tau, alpha, num_trials=500, max_attempts=50000):
+    p_values = []
+    recovery = 0
+    trial_count = 0
+
+    while len(p_values) < num_trials:
+        trial_count += 1
+        X, true_labels = generate_3cluster_data(n=n, p=p, delta=delta, sigma=sigma)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=2, linkage="complete")
+        model.fit()
+
+        winning_nodes = list(model.existing_clusters_log.keys())
+        key = winning_nodes[-1]
+        c1, c2 = key[0], key[1]
+        c1_points = c1.points
+        c2_points = c2.points
+
+        c1_true_clusters = set(true_labels[c1_points])
+        c2_true_clusters = set(true_labels[c2_points])
+
+        if len(c1_true_clusters) == 1 and len(c2_true_clusters) == 1:
+            recovery += 1
+            node = c1.parent
+            p_val, _, _ = model.merge_inference_F(node, grid_width=5, ncoarse=20, ngrid=1000)
+            p_values.append(p_val)
+
+        if trial_count > max_attempts:
+            print(f"Warning: Too few matching merges at tau={tau}")
+            break
+
+
+
+    power = np.mean(np.array(p_values) < alpha)
+    recovery_prob = recovery / num_trials
+    success = len(p_values) == num_trials
+    return power, recovery_prob, success
+
+'''
+def check_power_multi_deltas_parallel(n, p, sigma,tau, delta_list, alpha=0.05,
+                                    num_trials=500, n_jobs=-1):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(single_delta_power)(delta, n, p, sigma, tau, alpha, num_trials)
+        for delta in delta_list
+    )
+
+    power_results_sel = {delta: power for delta, power, _, _ in results}
+    recovery_results = {delta: rec for delta, _, rec, _ in results}
+    full = [success for _, _, _, success in results]
+
+
+    return power_results_sel, recovery_results, full
+'''
+
+
+def compute_for_tau_delta(tau, delta, n, p, sigma, alpha, num_trials):
+    power, recovery, success = single_delta_power(delta, n, p, sigma, tau, alpha, num_trials)
+    return tau, delta, power, recovery, success
+def check_power_multi_tau_delta(n, p, sigma, tau_list, delta_list, alpha=0.05,
+                                 num_trials=500, n_jobs=-1):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_for_tau_delta)(tau, delta, n, p, sigma, alpha, num_trials)
+        for tau in tau_list
+        for delta in delta_list
+    )
+
+    # Organize results into dictionary
+    power_results = {tau: {} for tau in tau_list}
+    recovery_results = {tau: {} for tau in tau_list}
+    success_results = {tau: {} for tau in tau_list}
+
+    for tau, delta, power, recovery, success in results:
+        power_results[tau][delta] = power
+        recovery_results[tau][delta] = recovery
+        success_results[tau][delta] = success
+
+    return power_results, recovery_results, success_results
