@@ -7,20 +7,19 @@ if __name__ == "__main__":
     n = 30
     p = 10
     sigma = 1
-    tau_list = [0,0.1, 0.25, 0.5, 1,1.5,2,5,10]
-    delta = 4.0
-    layer = -1
+    tau_list = [0,0.01, 0.05, 0.1, 0.5, 1]
+    delta = 8.0
     alpha = 0.05
-    num_trials = 200
+    num_trials = 10000
     n_jobs = -1
 
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.expanduser(f"power_results_{timestamp}")
+    output_dir = os.path.join("results",f"power_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
 
-    power_results_sel, recovery_results, full = check_power_multi_tau_parallel(
+    power_results_sel, recovery_results, full = check_power_multi_tau_parallel_random_pair(
         n=n, p=p, sigma=sigma, tau_list=tau_list,
         delta=delta, alpha=alpha, num_trials=num_trials,
         n_jobs=n_jobs

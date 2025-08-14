@@ -1,0 +1,85 @@
+import random
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from utils import *
+import rpy2.robjects as ro
+from rpy2.robjects.conversion import localconverter
+from rpy2.robjects import default_converter
+from rpy2.robjects import numpy2ri, r
+import warnings
+import logging
+from datetime import datetime
+import os
+
+warnings.filterwarnings("ignore", category=UserWarning)
+logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
+def compute_pval_gao(X, K, linkage, method = "euclidean"):
+    ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/r_functions.R")')
+    with localconverter(default_converter + numpy2ri.converter):
+        ro.globalenv['X'] = ro.conversion.py2rpy(X)
+
+    ro.globalenv['K_py'] = K
+    ro.globalenv['link_py'] = linkage
+    ro.globalenv['method_py'] = method
+    pval = ro.r("get_gao_pval(X, K_py, link_py, method_py)")
+    return pval
+
+def compute_pval_barber(X, K, method= "complete"):
+    ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/r_functions.R")')
+    with localconverter(default_converter + numpy2ri.converter):
+        ro.globalenv['X'] = ro.conversion.py2rpy(X)
+
+    ro.globalenv['K_py'] = K
+    ro.globalenv['method_py'] = method
+    pval = ro.r("get_barber_pval(X, K_py, method_py)")
+    return pval
+
+def check_gao_uniformity(n, p, sigma, K, linkage = "complete", num_trials= 500):
+    p_values = []
+    mu = np.zeros(p)
+
+    for _ in range(num_trials):
+        X = generate_null_data(n,p,mu,sigma)
+        pval = np.array(compute_pval_gao(X, K, linkage))[0]
+        p_values.append(pval)
+
+    return p_values
+
+def check_barber_uniformity(n, p, sigma, K, linkage = "complete", num_trials = 500):
+    p_values = []
+    mu = np.zeros(p)
+
+    for _ in range(num_trials):
+        X = generate_null_data(n, p, mu, sigma)
+        pval = np.array(compute_pval_barber(X, K, linkage))[0]
+        p_values.append(pval)
+
+    return p_values
+
+if __name__ == "__main__":
+    import os
+    random.seed(1)
+    n = 30
+    p = 10
+    sigma = 1.0
+    K = 3
+    linkage = "complete"
+    num_trials = 500
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join("results", f"pval_gaobarber_results_{timestamp}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    pvals_gao = check_gao_uniformity(n, p, sigma, K, linkage, num_trials)
+    pvals_barber = check_barber_uniformity(n, p, sigma, K, linkage, num_trials)
+
+    pvals_result = {"Gao": pvals_gao, "Barber": pvals_barber}
+    pvals_df = pd.DataFrame.from_dict(pvals_result)
+
+    pvals_df.to_csv(os.path.join(output_dir, "pval_data.csv"), index=False)
+
+
+

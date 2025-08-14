@@ -1,14 +1,16 @@
 from utils import *
 from datetime import datetime
+import random
 
 if __name__ == "__main__":
     import os
-
+    random.seed(1)
     n = 30
     p = 10
     sigma = 1.0
     K = 3
-    tau_list = [0.05, 0.1,0.5, 1.0, 3.0,5.0,10]
+    tau_list = [0.01,0.05,0.1,0.5,1,5]
+    #tau_list = [0.01]
     layer = -1
     linkage = "complete"
     num_trials = 500
@@ -18,14 +20,14 @@ if __name__ == "__main__":
     output_dir = os.path.join("results", f"pval_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
-    all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_parallel(
-        n, p, sigma, K, tau_list, layer, linkage, num_trials, n_jobs
+    all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_random_pair_parallel(
+        n, p, sigma, K, tau_list, linkage, num_trials, n_jobs
     )
 
     # Save raw data
     df = pd.DataFrame({f"tau={tau}": all_p_values[tau] for tau in tau_list})
     df["naive"] = naive_p_values
-    df.to_csv(os.path.join(output_dir, "pval_data.csv"), index=False)
+    df.to_csv(os.path.join(output_dir, "pval_data_randomized.csv"), index=False)
 
     '''
     plt.figure(figsize=(10, 6))
@@ -43,7 +45,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "histogram_pvalues.png"))
     plt.close()
-    '''
+    
 
 
     plt.figure(figsize=(10, 6))
@@ -76,3 +78,4 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "qq_plot_pvalues.png"))
     plt.close()
+    '''

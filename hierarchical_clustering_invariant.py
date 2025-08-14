@@ -88,7 +88,6 @@ class AgglomerativeClustering:
             current_clusters = self.cluster_nodes.copy()
             self.step += 1
             i, j = self._find_winning_clusters(self.distance_matrix)
-            #self.existing_clusters_log[(self.cluster_nodes[i], self.cluster_nodes[j])] = current_clusters.copy()
             self._merge_clusters(i, j, self.distance_matrix)
         self.root = self.cluster_nodes[0]
         self.final_step = self.step
@@ -804,5 +803,245 @@ class AgglomerativeClustering:
                 if stat_grid[g] >= observed_target:
                     num += posterior[g]
             p_value = num / sum
+
+        return (p_value, observed_target, sel_probs)
+
+    def compute_nu_pair(self, c1,c2):
+        # return the projection direction from the given node
+        G_1 = np.array(c1.points)
+        G_2 = np.array(c2.points)
+        n_G1 = len(G_1)
+        n_G2 = len(G_2)
+
+        nu = np.zeros(self.n)
+
+        nu[G_1] += 1 / n_G1
+        nu[G_2] -= 1 / n_G2
+        return nu
+    def _sel_correction_F_random_pair(self, c1, c2,grid, P2, R0, R1, S):
+
+        # node: a ClusterNode saving point, left, right, distance between merged, depth
+        # grid: each value is a grid value
+
+        def find_current_step(node1, node2):
+            dictionary = self.existing_clusters_log
+            for idx, key in enumerate(dictionary.keys()):
+                if (key == (node1, node2)) or (key == (node2, node1)):
+                    return idx + 1
+            return -1
+
+        # get the parent clusters of the given node
+        p_node_1 = c1
+        p_node_2 = c2
+
+        winning_pair = list(self.existing_clusters_log.keys())[-1]
+        m = len(p_node_1.points) + len(p_node_2.points)
+        nu = self.compute_nu_pair(c1,c2)
+        nu_norm = np.linalg.norm(nu)
+        # print("m: ",m)
+        current_step = find_current_step(winning_pair[0], winning_pair[1])
+        # print("current step: {}".format(current_step))
+        all_winning_pairs = self.get_all_winning_pairs()
+        # print("all winning pairs: {}".format(all_winning_pairs))
+
+        cor_prob = np.zeros_like(grid)  # for each grid value, cor_prob[g] = \sum (p(\hat{s}^{(t)}|X(g)))
+        G_w_1 = winning_pair[0] # G^{(t)}_1 and G^{(t)}_2
+        G_w_2 = winning_pair[1]
+        s = current_step  # going from top level to the beginning
+        corrections = np.zeros((len(grid), s))
+        while s > 0:
+            # print("level: ", s)
+            merged_pair = (G_w_1, G_w_2)
+            # print("winning pair at this step: ", merged_pair)
+            merged_pair_r = (G_w_2, G_w_1)
+            # to get all the existing cluster at this step
+            if merged_pair in self.existing_clusters_log.keys():
+                clusters_s = self.existing_clusters_log[merged_pair]
+            else:
+                clusters_s = self.existing_clusters_log[merged_pair_r]
+
+            for g_idx, g in enumerate(grid):
+                # get the reconstructed X_grid from grid value
+                # print("grid value: ", g)
+                cor_scores = []  # the vector [p_1,....,p_d], first item is always the optimal
+                Ds_grid = []
+                X_grid = (np.sqrt((g) / (m - 2 + (g))) * R0 + np.sqrt((m - 2) / (m - 2 + (g))) * R1) * np.sqrt(
+                    S) + P2 @ self.X
+                D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  # D(\hat{G}_1, \hat{G}_2; X_grid)
+                Ds_grid.append(D_opt_grid)
+
+                pairs = combinations(clusters_s, 2)
+                for cluster1, cluster2 in pairs:
+                    if not ((G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2)):
+                        D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
+                        Ds_grid.append(D_grid)
+
+                tau_t_grid = self.tau * np.mean(Ds_grid)
+                cor_scores = [np.exp(-(1 / tau_t_grid) * D_grid) for D_grid in Ds_grid]
+                cor_scores = (cor_scores / np.sum(cor_scores))  # normalization
+                # cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
+                cor_prob[g_idx] = np.log(cor_scores[0])
+                # cor_prob[g_idx] += np.log(cor_scores[0])
+                # print("cor_prob: ", cor_prob[g_idx])
+
+            corrections[:, s - 1] += cor_prob
+
+            if s > 1:
+                winning_pair_s = all_winning_pairs[s - 2]  # get the winning pair of previous level
+                G_w_1 = winning_pair_s[0]
+                G_w_2 = winning_pair_s[1]
+
+            s -= 1
+        return np.array(corrections)
+        # return np.array(cor_prob)
+
+    def merge_inference_F_random_pair(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15):
+        def create_indicator_diagonal_matrix(index_list, n):
+            diag = np.zeros(n)
+            diag[index_list] = 1
+            return np.diag(diag), diag
+
+        if self.tau != 0:
+            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            p_node_1 = c1
+            p_node_2 = c2
+            m = len(p_node_1.points) + len(p_node_2.points)
+            if m == 2:
+                p_value = np.nan
+                observed_target = np.nan
+                sel_probs = np.nan
+
+            else:
+                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+                one1 = one1.reshape(-1, 1)
+                one2 = one2.reshape(-1, 1)
+                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+                P2 = np.eye(self.n) - P0 - P1
+
+                S = np.linalg.norm(P0 @ self.X, 'fro') ** 2 + np.linalg.norm(P1 @ self.X, 'fro') ** 2
+                R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
+                R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
+
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
+                            np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                # print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
+                # print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                # print(observed_target)
+                # print("Are they close?", np.allclose(self.X, (np.sqrt(observed_target/(m-2+observed_target)) * R0 + np.sqrt((m-2)/(m-2+observed_target)) * R1) *np.sqrt(S) + P2 @ self.X))
+                # projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
+                # print("Projection error (should be close to 0):", projection_error)
+                # print("obs:",observed_target)
+                if ncoarse is not None:
+                    coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
+                    eval_grid = coarse_grid
+                else:
+                    eval_grid = stat_grid
+
+                if ncoarse is None:
+                    sel_probs = self._sel_correction_F_random_pair(c1,c2, stat_grid, P2, R0, R1, S)
+                    p = self.p
+                    log_prior = np.zeros(ngrid)
+                    for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=stat_grid[g], dfn=p, dfd=(m - 2) * p)
+                    log_post = log_prior + sel_probs
+                    posterior = np.exp(log_post)
+
+                    sum = 0
+                    num = 0
+                    for g in range(ngrid):
+                        sum += posterior[g]
+                        if stat_grid[g] >= observed_target:
+                            num += posterior[g]
+                    p_value = num / sum
+                else:
+                    sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, eval_grid, P2, R0, R1, S)
+                    step = sel_probs_coarse.shape[1]
+
+                    grid = np.linspace(0.00001, grid_width, num=ngrid)
+                    sel_probs = np.zeros(ngrid)
+                    log_prior = np.zeros(ngrid)
+                    p = self.p
+
+                    '''
+                    for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
+                    for s in range(step):
+                        approx_fn = interp1d(eval_grid,
+                                         sel_probs_coarse[:,s],
+                                         kind='quadratic',
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+                        #for g in range(ngrid):
+                            #sel_probs[g] += approx_fn(grid[g]) #selection probability
+                    '''
+                    log_prior = f.logpdf(x=grid, dfn=p, dfd=(m - 2) * p)
+
+                    interpolation = np.array([
+                        interp1d(eval_grid, sel_probs_coarse[:, s],
+                                 kind='quadratic',
+                                 bounds_error=False,
+                                 fill_value='extrapolate')(grid)
+                        for s in range(step)
+                    ])
+                    sel_probs = interpolation.sum(axis=0)
+                    '''
+                    approx_fn = interp1d(eval_grid,
+                                         sel_probs_coarse,
+                                         kind='quadratic',
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+
+                                        for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
+                        sel_probs[g] = approx_fn(grid[g])
+                    '''
+                    log_post = log_prior + sel_probs
+                    posterior = np.exp(log_post)
+
+                    posterior = posterior / np.max(posterior)
+                    sum = 0
+                    num = 0
+                    for g in range(ngrid):
+                        sum += posterior[g]
+                        if grid[g] >= (observed_target):
+                            num += posterior[g]
+                    p_value = num / sum
+        else:
+            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            p_node_1 = c1
+            p_node_2 = c2
+            m = len(p_node_1.points) + len(p_node_2.points)
+            if m == 2:
+                p_value = np.nan
+                observed_target = np.nan
+                sel_probs = np.nan
+            else:
+                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+                one1 = one1.reshape(-1, 1)
+                one2 = one2.reshape(-1, 1)
+                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / np.linalg.norm(P1 @ self.X,
+                                                                                                     'fro') ** 2
+
+                sel_probs = 0
+                p = self.p
+                posterior = np.zeros(ngrid)
+                for g in range(ngrid):
+                    posterior[g] = f.pdf(stat_grid[g], p, (m - 2) * p)
+
+                sum = 0
+                num = 0
+                for g in range(ngrid):
+                    sum += posterior[g]
+                    if stat_grid[g] >= observed_target:
+                        num += posterior[g]
+                p_value = num / sum
 
         return (p_value, observed_target, sel_probs)

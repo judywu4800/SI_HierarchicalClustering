@@ -52,12 +52,12 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=2, linkage="complete", total_a
             if (n1 + n2) == 2:
                 pval = 1  # F distribution method cannot handle the case when n1+n2=2
             else:
-                pval, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=1000)
+                pval, _, _ = model.merge_inference_F(node, grid_width=30, ncoarse=50, ngrid=1000)
 
         else:
             alpha = np.max(alpha_list)  # More power for larger clusters
             idx = np.argmax(alpha_list)
-            pval, _, _ = model.merge_inference_F(node, grid_width=50, ncoarse=20, ngrid=1000)
+            pval, _, _ = model.merge_inference_F(node, grid_width=30, ncoarse=50, ngrid=1000)
         alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)
@@ -101,7 +101,7 @@ def find_best_K_chi(X, tau, alpha_list, n_threshold=2, linkage="complete", total
         else:
             alpha = np.max(alpha_list)  # More power for larger clusters
             idx = np.argmax(alpha_list)
-        pval, _, _ = model.merge_inference_chi(node, grid_width=50, ncoarse=20, ngrid=1000)
+        pval, _, _ = model.merge_inference_chi(node, grid_width=20, ncoarse=20, ngrid=1000, sd=1)
         alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)

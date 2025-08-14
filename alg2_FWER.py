@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
+from utils import generate_null_data, check_p_value_uniformity
 import random
-from find_best_K import find_best_K_F
+from find_best_K import find_best_K_F, find_best_K_chi
 from datetime import datetime
 import os
 
-def generate_null_data(n, p, sigma=1):
-    return np.random.normal(0, sigma, size=(n, p))
+
 def generate_alpha_list(n=30, total_alpha=0.05, seed=42):
     if n % 3 != 0:
         raise ValueError("n must be divisible by 3.")
@@ -28,38 +28,45 @@ def generate_alpha_list(n=30, total_alpha=0.05, seed=42):
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
 
     return alpha_list
-def run_single_trial(tau, n, p, total_alpha):
-    X_null = generate_null_data(n=n, p=p)
+def run_single_trial(tau, n, p, sigma, total_alpha):
+    mu = np.zeros(p)
+    X_null = generate_null_data(n,p, mu,sigma)
     alpha_list = generate_alpha_list(n=n, total_alpha=total_alpha)
-    K_hat, _, _ = find_best_K_F(X_null, tau=tau, alpha_list=alpha_list)
-    return int(K_hat > 1)  # 1 if false rejection
+    #alpha_list = np.ones((n-1))/(n-1)*0.05
 
+    K_hat, _, _ = find_best_K_F(X_null, tau=tau, alpha_list=alpha_list.copy(), total_alpha=total_alpha)
+    #K_hat, _, _ = find_best_K_chi(X_null, tau=tau, alpha_list=alpha_list.copy(), total_alpha=total_alpha)
+    return int(K_hat > 1), K_hat  # 1 if false rejection
 
 
 if __name__ == "__main__":
-    taus = [0,0.01, 0.05, 0.1, 0.5, 1.0]
-    num_trials = 2000
+    taus = [0, 0.01,0.05, 0.1,0.5,1]
+    num_trials = 100
     n = 30
     p = 10
+    sigma = 1
     total_alpha = 0.05
 
-    np.random.seed(0)
-    random.seed(0)
-
     results = []
+    flat_k_hats = []
 
     for tau in taus:
-        errors = Parallel(n_jobs=-1)(
-            delayed(run_single_trial)(tau, n, p, total_alpha)
+        trial_results = Parallel(n_jobs=-1)(
+            delayed(run_single_trial)(tau, n, p,sigma, total_alpha)
             for _ in range(num_trials)
         )
+
+        errors, K_hats = zip(*trial_results)
         fwer = sum(errors) / num_trials
+
         tau_label = "naive" if tau == 0 else tau
         results.append({
             "tau": tau_label,
             "FWER": fwer,
             "num_trials": num_trials
         })
+
+        flat_k_hats.extend([{"tau": tau_label, "K_hat": k} for k in K_hats])
 
     df_results = pd.DataFrame(results)
 
@@ -70,6 +77,11 @@ if __name__ == "__main__":
     output_file = os.path.join(output_dir, "fwer_results.csv")
     df_results.to_csv(output_file, index=False)
 
+    df_k_hats = pd.DataFrame(flat_k_hats)
+    k_hats_file = os.path.join(output_dir, "k_hats_flat.csv")
+    df_k_hats.to_csv(k_hats_file, index=False)
+
+    # Plotting
     labels = df_results["tau"].astype(str).tolist()
     x_positions = np.arange(len(labels))
 
@@ -82,7 +94,6 @@ if __name__ == "__main__":
         color='blue',
         label="Empirical FWER"
     )
-    # naive 点
     plt.scatter(
         x_positions[0],
         df_results.loc[df_results["tau"] == "naive", "FWER"],

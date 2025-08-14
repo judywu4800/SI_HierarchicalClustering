@@ -16,7 +16,7 @@ if __name__ == "__main__":
     num_repeats = 100
     n_jobs = -1
 
-    df_results = check_type1_multi_tau_parallel(n, p, sigma, tau_list, K, layer,
+    df_results = check_type1_multi_tau_random_pair_parallel(n, p, sigma, tau_list, K,
                                                  alpha=alpha, num_trials=num_trials,
                                                  num_repeats=num_repeats, n_jobs=n_jobs)
 

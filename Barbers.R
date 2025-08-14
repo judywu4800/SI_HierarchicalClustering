@@ -4,6 +4,7 @@
 library(MASS)
 library(intervals)
 library(truncnorm)
+library(ggplot2)
 
 ##------------------------------------------------------------------------------
 ## Plot specifications
@@ -264,7 +265,7 @@ fun_ratio_target_to_proposal = function(x, ts_, m, q, alpha) {
   return(to_return)
 }
 
-fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha) {
+fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha, method) {
   # input(s):
   # - X: data matrix of dimensions n by q 
   # - k: number of clusters the clustering algorithm produces
@@ -275,7 +276,7 @@ fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha) {
   # output(s):
   # - p-value
   # - acceptance rate 
-  hc = hclust(dist(X) ** 2, method = "average")
+  hc = hclust(dist(X) ** 2, method = method)
   cl = cutree(hc, K) 
   # computes useful quantities
   n = nrow(X)
@@ -321,7 +322,21 @@ fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha) {
   w_new = w_new - max(w_new)
   pval = sum(exp(w_new[vec_h1[vec_h2 == 1] == 1]) / sum(exp(w_new)))
   acc_rate = sum(vec_h2) / ndraws
-  return(c(pval, acc_rate))
+  return(c(pval, acc_rate,cl))
+}
+
+get_pval_if_recovered_barber <- function(X, clusters_true, linkage = "complete", K=3){
+  hcl <- hclust(dist(X)^2, method = linkage)
+  hcl_at_K <- cutree(hcl, K)
+
+  crosstab <- table(hcl_at_K, clusters_true)
+  recovered <- (sum(crosstab != 0) == K)
+  if (!recovered) {
+    return(NA)
+  }
+
+  pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= "complete")[1]
+  return(pval)
 }
 
 ##------------------------------------------------------------------------------
