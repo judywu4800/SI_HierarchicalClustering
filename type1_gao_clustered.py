@@ -23,7 +23,7 @@ _GAO_FUN = None
 def init_worker_gao(r_script_path):
     global _GAO_FUN
     ro.r(f'source("{r_script_path}")')
-    _GAO_FUN = ro.r['get_gao_pval']
+    _GAO_FUN = ro.r['get_gao_pval_clustered']
 
 
 def one_repeat_task_gao(args):
@@ -45,14 +45,14 @@ def one_repeat_task_gao(args):
             pvals.append(pv)
 
     type1 = float(np.mean(np.array(pvals) < alpha))
-    return {"Method": "Gao", "Label": (label or "Gao (sigma_all)"), "Type I Error": type1}
+    return {"Method": "Gao", "Label": (label or "Gao (sigma_clustered)"), "Type I Error": type1}
 
 def check_type1_pool_gao(n, p, sigma,
                          K=3, alpha=0.05,
                          num_trials=200, num_repeats=20,
                          linkage='complete', metric='euclidean',
                          n_jobs=32, seed_master=1,
-                         r_script=R_SCRIPT, label="Gao (sigma_all)"):
+                         r_script=R_SCRIPT, label="Gao (sigma_clustered)"):
 
     ss = np.random.SeedSequence(seed_master)
     child_seeds = ss.spawn(num_repeats)
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         num_trials=num_trials, num_repeats=num_repeats,
         linkage='complete', metric='euclidean',
         n_jobs=n_jobs, seed_master=1,
-        r_script=R_SCRIPT, label="Gao (sigma_all)"
+        r_script=R_SCRIPT, label="Gao (sigma_clustered)"
     )
 
-    df_results.to_csv(os.path.join(output_dir, "type1_gao_by_repeat.csv"), index=False)
+    df_results.to_csv(os.path.join(output_dir, "type1_gao_c_by_repeat.csv"), index=False)

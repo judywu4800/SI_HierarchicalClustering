@@ -1,6 +1,10 @@
+import numpy as np
+
 from utils import *
 from datetime import datetime
+from pygam import LogisticGAM, s
 import random
+
 
 if __name__ == "__main__":
     import os
@@ -9,47 +13,65 @@ if __name__ == "__main__":
     p = 10
     sigma = 1
     #tau=0.1
-    tau_list = [0.01]
+    tau_list = [0,0.01, 0.05, 0.1,0.5,0.75,1]
     #tau_list = [0.01]
     #deltas = [8,10]
-    deltas = [0,2,4,6,8,10]
+    #deltas = [0,2,4,6,8,10]
+    deltas = np.linspace(5,20,9)
     alpha = 0.05
-    num_trials = 500
+    num_trials = 2000
     n_jobs = -1
+
+    df_trials = check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha, num_trials, n_jobs)
 
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("results", f"power_delta_results_{timestamp}")
+    output_dir = os.path.join("results", f"power_es_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
-    power_results, recovery_results, success_results = check_power_multi_tau_delta_random_pair(
-        n, p, sigma, tau_list, deltas, alpha, num_trials, n_jobs
-    )
+    #reject_results, recovery_results, es_results, df_trials = check_power_multi_tau_delta_random_pair(
+    #    n, p, sigma, tau_list, deltas, alpha, num_trials, n_jobs
+    #)
 
-    rows = []
-    for tau in tau_list:
-        for delta in deltas:
-            rows.append({
-                "Tau": tau,
-                "Delta": delta,
-                "Conditional Power": power_results[tau][delta],
-                "Recovery Probability": recovery_results[tau][delta],
-                "Successful Trials": success_results[tau][delta]
-            })
+    csv_path = os.path.join(output_dir, "reject_es.csv")
+    df_trials.to_csv(csv_path, index=False)
 
-    df = pd.DataFrame(rows)
-    csv_path = os.path.join(output_dir, "power_and_recovery.csv")
-    df.to_csv(csv_path, index=False)
 
     plt.figure(figsize=(10, 6))
-    for tau in tau_list:
-        label = "Naive" if tau == 0 else f"tau={tau}"
-        plt.plot(deltas, [power_results[tau][d] for d in deltas],
-                 marker='o', label=label)
-    plt.xlabel("Delta")
-    plt.ylabel("Power")
-    plt.title("Power vs Delta for Multiple Tau Values")
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.savefig(os.path.join(output_dir, "combined_power_plot.png"))
+
+    for tau, g in df_trials.groupby("tau"):
+        X = g[["effect_size"]].values
+        y = g["reject"].values
+
+        gam = LogisticGAM(s(0) + s(1)).fit(X, y)
+
+        grid = np.linspace(0.0, 3.0, 500)
+        power_hat = gam.predict_mu(grid)
+
+        plt.plot(grid, power_hat, lw=2, label=f"tau={tau}")
+
+    plt.xlabel("Delta (effect size)")
+    plt.ylabel("Power (Pr[Reject=1 | Δ])")
+    plt.title("Power vs Delta for different tau")
+    plt.legend(title="Tau")
+    plt.grid(True, linestyle="--", alpha=0.4)
+
+    plt.savefig(os.path.join(output_dir, "power_vs_es_plot.png"))
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    all_es = df_trials["effect_size"].values
+    bins = np.histogram_bin_edges(all_es, bins=30)
+
+    for tau, g in df_trials.groupby("tau"):
+        es = g["effect_size"].values
+        plt.hist(es, bins=bins, density=True, histtype="step", linewidth=2.0,label=f"τ={tau}", alpha=0.9)
+
+    plt.xlabel("Effect size")
+    plt.ylabel("Density")
+    plt.title("Distribution of effect sizes by tau")
+    plt.legend(title="Tau", frameon=False, ncol=2)
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "effectsize_hist_by_tau.png"), dpi=200)
     plt.close()

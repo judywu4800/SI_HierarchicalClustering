@@ -9,7 +9,7 @@ if __name__ == "__main__":
     p = 10
     sigma = 1
     #tau=0.1
-    tau_list = [0.01]
+    tau_list = [0,0.01, 0.05, 0.1,0.5,1]
     #tau_list = [0.01]
     #deltas = [8,10]
     deltas = [0,2,4,6,8,10]

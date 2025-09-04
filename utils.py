@@ -27,7 +27,8 @@ def generate_data_barbers(n_each, delta, sigma, true_mean = False):
 
     X = np.vstack([X1, X2, X3])
     labels = np.concatenate([labels1, labels2, labels3])
-    mu = np.concatenate([mu1, mu2, mu3])
+    cluster_means = np.vstack([mu1, mu2, mu3])
+    mu = cluster_means[labels.astype(int) - 1]
     if true_mean:
         return X, labels, mu
     else:
@@ -313,7 +314,7 @@ def run_trial_random_pair(n, p, sigma, K, tau_list, linkage):
         c1 = model.K_clusters[0]
         c2 = model.K_clusters[1]
 
-        p_val, _, _ = model.merge_inference_F_random_pair(c1,c2, grid_width=8, ncoarse=20, ngrid=2000)
+        p_val, _, _ = model.merge_inference_F_random_pair(c1,c2, grid_width=10, ncoarse=20, ngrid=2000)
         trial_results[tau] = p_val
 
     return trial_results
@@ -375,7 +376,7 @@ def check_type1_multi_tau_parallel(n, p, sigma, tau_list, K, layer, alpha=0.05, 
 
     plt.figure(figsize=(10, 6))
     sns.boxplot(data=df_results, x="Tau", y="Type I Error", hue="Type")
-    plt.axhline(y=alpha, linestyle='--', color='red', label=f"Significance level α = {alpha}")
+    plt.axhline(y=alpha, linestyle='--', color='red', label   =f"Significance level α = {alpha}")
     plt.title(f"Distribution of Type I Error Rates over {num_repeats} Repetitions")
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend()
@@ -740,7 +741,24 @@ def single_delta_power_random_pair(delta, n, p, sigma, tau, alpha, num_trials=50
     success = len(p_values) == num_trials
     return power, recovery_prob, success
 
-def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, max_attempts=50000):
+def compute_for_tau_delta_random_pair(tau, delta, n, p, sigma, alpha, num_trials):
+    #power, recovery, success = single_delta_power_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
+    power, recovery, effect_size = single_delta_power_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
+    return tau, delta, power, recovery, effect_size
+def check_power_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta, alpha=0.05,
+                                 num_trials=500, n_jobs=-1):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_for_tau_delta_random_pair)(tau, delta, n, p, sigma, alpha, num_trials)
+        for tau in tau_list
+    )
+
+    power_results = {tau: power for tau,_, power, _, _ in results}
+    recovery_results = {tau: rec for tau, _, _,rec, _ in results}
+    effect_size_results = {tau: es for tau, _, _, _, es in results}
+
+    return power_results, recovery_results, effect_size_results
+
+def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
     p_values = []
     effect_sizes = []
     recovery = 0
@@ -757,45 +775,131 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, 
         c2 = model.K_clusters[1]
         c1_points = c1.points
         c2_points = c2.points
+        c12_points = np.concatenate([c1_points, c2_points])
 
         sigma2_all = np.sum(np.linalg.norm(X - np.mean(X, axis=0), axis=1) ** 2) / ((n - 1) * 2)
         mean_k1 = np.mean(true_means[c1_points, :], axis=0)
         mean_k2 = np.mean(true_means[c2_points, :], axis=0)
+        mean_k12 = np.mean(true_means[c12_points, :], axis=0)
+        #sigma2_cluster =np.sum(np.linalg.norm(X[c12_points,:] - mean_k12) ** 2) / ((len(c12_points) - 1))
+        #sigma2_cluster = (np.sum(np.linalg.norm(X[c1_points,:] - mean_k1, axis=1) ** 2) + np.sum(np.linalg.norm(X[c2_points,:] - mean_k2, axis=1) ** 2))/ ((len(c1_points)+ len(c2_points) - 2))
         effect_size = np.linalg.norm(mean_k1 - mean_k2) / np.sqrt(sigma2_all)
         effect_sizes.append(effect_size)
 
         idx = np.concatenate([c1_points, c2_points])
         unique_labels = np.unique(true_labels[idx])
         non_alternative = len(unique_labels)== 1
-
-        p_val, _, _ = model.merge_inference_F_random_pair(c1, c2, grid_width=20, ncoarse=20, ngrid=1000)
+        grid_width = 80
+        #if tau < 0.05:
+        #    grid_width = 40
+        p_val, _, _ = model.merge_inference_F_random_pair(c1, c2, grid_width= grid_width, ncoarse=20, ngrid=1000)
         p_values.append(p_val)
         if not non_alternative:
             recovery += 1
 
 
-    power = np.mean(np.array(p_values) < alpha)
+    #power = np.mean(np.array(p_values) < alpha)
+    reject = (np.array(p_values) < alpha).astype(int).tolist()
     recovery_prob = recovery / num_trials
     #success = len(p_values) == num_trials
 
-    return power, recovery_prob, effect_sizes
+    return reject, recovery_prob, effect_sizes
 
-def compute_for_tau_delta_random_pair(tau, delta, n, p, sigma, alpha, num_trials):
-    #power, recovery, success = single_delta_power_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
-    power, recovery, effect_size = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
-    return tau, delta, power, recovery, effect_size
-def check_power_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta, alpha=0.05,
+def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, num_trials=500):
+    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
+    return delta, tau, reject, effect_sizes,recovery_prob
+
+def check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.05,
                                  num_trials=500, n_jobs=-1):
     results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_for_tau_delta_random_pair)(tau, delta, n, p, sigma, alpha, num_trials)
+        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, num_trials)
         for tau in tau_list
+        for delta in deltas
     )
+    all_dfs = []
+    for rows in results:
+        delta = rows[0]
+        tau = rows[1]
+        reject = rows[2]
+        effect_size = rows[3]
+        recovery_prob = rows[4]
+        df = pd.DataFrame({
+            "tau": [tau] * len(effect_size),
+            "delta": [delta] * len(effect_size),
+            "effect_size": effect_size,
+            "reject": reject,
+            "method": ["Randomized"] * len(effect_size)
+            })
+        all_dfs.append(df)
+    final_df = pd.concat(all_dfs, ignore_index=True)
 
-    power_results = {tau: power for tau,_, power, _, _ in results}
-    recovery_results = {tau: rec for tau, _, _,rec, _ in results}
-    effect_size_results = {tau: es for tau, _, _, _, es in results}
+    return(final_df)
 
-    return power_results, recovery_results, effect_size_results
+def single_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
+    p_values = []
+    effect_sizes = []
+    recovery = 0
+
+    for _ in range(num_trials):
+        X, true_labels, true_means = generate_data_barbers(10,delta,sigma, true_mean=True)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=3, linkage="complete")
+        model.fit()
+
+        pairs = combinations(model.K_clusters, 2)
+
+        for c1, c2 in pairs:
+            c1_points = c1.points
+            c2_points = c2.points
+            c12_points = np.concatenate([c1_points, c2_points])
+
+            p_val, _, _ = model.merge_inference_F_random_pair(c1,c2,grid_width= 50, ncoarse=20, ngrid=1000)
+            p_values.append(p_val)
+
+
+            #sigma2_all = np.sum(np.linalg.norm(X - np.mean(X, axis=0), axis=1) ** 2) / ((n - 1) * 2)
+            mean_k1 = np.mean(true_means[c1_points, :], axis=0)
+            mean_k2 = np.mean(true_means[c2_points, :], axis=0)
+            mean_k12 = np.mean(true_means[c12_points, :], axis=0)
+            sigma2_cluster =np.sum(np.linalg.norm(X[c12_points,:] - mean_k12) ** 2) / ((len(c12_points) - 1))
+            #sigma2_cluster = (np.sum(np.linalg.norm(X[c1_points,:] - mean_k1, axis=1) ** 2) + np.sum(np.linalg.norm(X[c2_points,:] - mean_k2, axis=1) ** 2))/ ((len(c1_points)+ len(c2_points) - 2))
+            effect_size = np.linalg.norm(mean_k1 - mean_k2) / np.sqrt(sigma2_cluster)
+            effect_sizes.append(effect_size)
+
+
+    #power = np.mean(np.array(p_values) < alpha)
+    reject = (np.array(p_values) < alpha).astype(int).tolist()
+    #recovery_prob = recovery / num_trials
+    #success = len(p_values) == num_trials
+
+    return reject, effect_sizes
+
+def compute_es_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, num_trials=500):
+    reject, effect_sizes = single_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
+    return delta, tau, reject, effect_sizes
+
+def check_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.05,
+                                 num_trials=500, n_jobs=-1):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(compute_es_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, num_trials)
+        for tau in tau_list
+        for delta in deltas
+    )
+    all_dfs = []
+    for rows in results:
+        delta = rows[0]
+        tau = rows[1]
+        reject = rows[2]
+        effect_size = rows[3]
+        df = pd.DataFrame({
+            "tau": [tau] * len(effect_size),
+            "delta": [delta] * len(effect_size),
+            "effect_size": effect_size,
+            "reject": reject
+            })
+        all_dfs.append(df)
+    final_df = pd.concat(all_dfs, ignore_index=True)
+
+    return(final_df)
 
 def single_delta_reject_prop_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, max_attempts=50000):
     #p_values = []

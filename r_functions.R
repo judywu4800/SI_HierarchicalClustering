@@ -2,6 +2,43 @@
 library(fastcluster)
 library(clusterpval)
 
+fun_ss_hat_all = function(X) {
+  # input(s):
+  #  - X: data matrix of dimensions n by q
+  #  - n: number of rows of X
+  #  - q: number of columns of X
+  # output(s):
+  #  - Variance estimator used for Gao et al. with sigmahat_all
+  n <- nrow(X)
+  q <- ncol(X)
+  center = colMeans(X)
+  mat_center = matrix(rep(center, n), n, q, byrow = TRUE)
+  to_return = sum((X - mat_center) ** 2) / ((n - 1) * q)
+  return(to_return)
+}
+
+fun_ss_hat_clustered = function(X, cl, K) {
+  # input(s):
+  #  - X: data matrix of dimensions n by q
+  #  - n: number of rows of X
+  #  - q: number of columns of X
+  #  - cl: vector of cluster assignments, e.g. c(1, 1, 2, 3, 3, 2)
+  #  - K: number of clusters produced by the clustering algorithm
+  # output(s):
+  #  - variance estimator used for Gao et al. with sigmahat_clustered
+  n <- nrow(X)
+  q <- ncol(X)
+  numer = 0
+  for (i in 1:K) {
+    n_i = sum(cl == i)
+    X_i = matrix(X[cl == i, ], ncol = q)
+    center_i = colMeans(X_i)
+    mat_center_i = matrix(rep(center_i, n_i), n_i, q, byrow = TRUE)
+    numer = numer + sum((X[cl == i, ] - mat_center_i) ** 2)
+  }
+  to_return = numer / ((n - K) * q)
+  return(to_return)
+}
 get_cluster_obs <- function(hcl, node) {
   if (node < 0) {
     return(-node)
@@ -21,7 +58,6 @@ get_last_pair <- function(hcl,K){
    label2 <- clust_labels[cluster2[1]]
    return(c(label1,label2))
 }
-
 get_gao_pval <- function(X,K, linkage, method = "euclidean"){
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl)$pval
@@ -31,6 +67,61 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean"){
     return(pval)
 }
 
+get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean"){
+    hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
+    hcl_at_K <- cutree(hcl, K)
+    sigma_hat <- fun_ss_hat_clustered(X,hcl_at_K, K)
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl, sig = sqrt(sigma_hat))$pval
+               }
+    else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl,sig = sqrt(sigma_hat))$pval}
+
+    return(pval)
+}
+
+get_gao_pval_es <- function(X, true_means,K, linkage){
+    hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
+    k1 <- 1
+    k2 <- 2
+
+    hcl_at_K <- cutree(hcl,K)
+    n1 <- sum(hcl_at_K == k1)
+    n2 <- sum(hcl_at_K == k2)
+
+    sigma_hat <- fun_ss_hat_all(X)
+    mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
+    mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
+
+    effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_hat)
+
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl)$pval
+               }
+    else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
+
+    return(c(pval,effect))
+}
+get_gao_pval_es_clustered <- function(X, true_means,K, linkage){
+    hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
+    k1 <- 1
+    k2 <- 2
+
+    hcl_at_K <- cutree(hcl,K)
+    n1 <- sum(hcl_at_K == k1)
+    n2 <- sum(hcl_at_K == k2)
+
+    sigma_clustered <- fun_ss_hat_clustered(X,hcl_at_K, K)
+    sigma_all <- fun_ss_hat_all(X)
+    mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
+    mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
+
+    effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_all)
+
+
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl, sig = sqrt(sigma_clustered))$pval
+               }
+    else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl, sig=sqrt(sigma_clustered))$pval}
+
+    return(c(pval,effect))
+}
 
 get_pval_if_recovered_gao <- function(X, clusters_true, linkage = "complete", K=3) {
 
@@ -120,45 +211,6 @@ plot_details = theme(plot.title = element_text(hjust = 0.5,
                      legend.key = element_rect(color = NA, fill = NA,
                                                size = unit(1, "cm")))
 
-##------------------------------------------------------------------------------
-## Functions for estimating variances
-
-fun_ss_hat_clustered = function(X, n, q, cl, K) {
-  # input(s):
-  #  - X: data matrix of dimensions n by q
-  #  - n: number of rows of X
-  #  - q: number of columns of X
-  #  - cl: vector of cluster assignments, e.g. c(1, 1, 2, 3, 3, 2)
-  #  - K: number of clusters produced by the clustering algorithm
-  # output(s):
-  #  - variance estimator used for Gao et al. with sigmahat_clustered
-  numer = 0
-  for (i in 1:K) {
-    n_i = sum(cl == i)
-    X_i = matrix(X[cl == i, ], ncol = q)
-    center_i = colMeans(X_i)
-    mat_center_i = matrix(rep(center_i, n_i), n_i, q, byrow = TRUE)
-    numer = numer + sum((X[cl == i, ] - mat_center_i) ** 2)
-  }
-  to_return = numer / ((n - K) * q)
-  return(to_return)
-}
-
-fun_ss_hat_all = function(X, n, q) {
-  # input(s):
-  #  - X: data matrix of dimensions n by q
-  #  - n: number of rows of X
-  #  - q: number of columns of X
-  # output(s):
-  #  - Variance estimator used for Gao et al. with sigmahat_all
-  center = colMeans(X)
-  mat_center = matrix(rep(center, n), n, q, byrow = TRUE)
-  to_return = sum((X - mat_center) ** 2) / ((n - 1) * q)
-  return(to_return)
-}
-
-##------------------------------------------------------------------------------
-## Functions for decomposing X
 
 fun_v = function(cl, k1 = 1, k2 = 2) {
   # input(s):
@@ -413,12 +465,27 @@ fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha, method) {
   return(c(pval, acc_rate,cl))
 }
 
-
 get_barber_pval <- function(X, K, linkage = "complete"){
   hcl <- hclust(dist(X)^2, method = linkage)
   hcl_at_K <- cutree(hcl, K)
   pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]
   return(pval)
+}
+
+get_barber_pval_es <- function(X,true_means, K, linkage = "complete"){
+  hcl <- hclust(dist(X)^2, method = linkage)
+  k1 <- 1
+  k2 <- 2
+  hcl_at_K <- cutree(hcl, K)
+  n1 <- sum(hcl_at_K == k1)
+  n2 <- sum(hcl_at_K == k2)
+  sigma_hat <- fun_ss_hat_all(X)
+  mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
+  mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
+  effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_hat)
+
+  pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]
+  return(c(pval,effect))
 }
 
 get_pval_if_recovered_barber <- function(X, clusters_true, linkage = "complete", K=3){
