@@ -19,7 +19,7 @@ if __name__ == "__main__":
     #deltas = [0,2,4,6,8,10]
     deltas = np.linspace(5,20,9)
     alpha = 0.05
-    num_trials = 2000
+    num_trials = 500
     n_jobs = -1
 
     df_trials = check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha, num_trials, n_jobs)

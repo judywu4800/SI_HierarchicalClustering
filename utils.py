@@ -148,7 +148,7 @@ def check_p_value_uniformity(n, p, sigma, K, tau, layer, linkage="complete", num
         winning_nodes = list(model.existing_clusters_log.keys())
         key = winning_nodes[layer]
         node = key[0].parent
-        p_value, obs, sel_corrected = model.merge_inference_F(node, grid_width=15, ncoarse=20, ngrid=2000)
+        p_value, obs, sel_corrected = model.merge_inference_F(node, grid_width=30, ncoarse=20, ngrid=2000)
         p_value_n = naive_p_value(X, K, layer, linkage)
         if not (np.isnan(p_value) and np.isnan(p_value_n)):
             p_values.append(p_value)
@@ -789,10 +789,9 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
         idx = np.concatenate([c1_points, c2_points])
         unique_labels = np.unique(true_labels[idx])
         non_alternative = len(unique_labels)== 1
-        grid_width = 80
         #if tau < 0.05:
         #    grid_width = 40
-        p_val, _, _ = model.merge_inference_F_random_pair(c1, c2, grid_width= grid_width, ncoarse=20, ngrid=1000)
+        p_val, _ = model.merge_inference_F_random_pair_grid(c1, c2, grid_width= 70, ncoarse=20, ngrid=1000)
         p_values.append(p_val)
         if not non_alternative:
             recovery += 1

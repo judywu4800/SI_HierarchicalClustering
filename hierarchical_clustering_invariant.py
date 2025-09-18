@@ -2,8 +2,8 @@ import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics import silhouette_score
 from itertools import combinations
-from scipy.interpolate import interp1d
-from scipy.special import gamma
+from scipy.interpolate import interp1d, PchipInterpolator
+from scipy.special import gamma, logsumexp
 from scipy.stats import f
 from scipy.integrate import cumulative_trapezoid
 import os
@@ -1048,94 +1048,36 @@ class AgglomerativeClustering:
                 p_value = num / sum
 
         return (p_value, observed_target, sel_probs)
+    ###########TODO: grid adjustment
+    def merge_inference_F_random_pair_grid(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15, buffer = 0.05):
+        def get_fine_grid(cdf, grid, qlow = 0.005, qhigh = 0.995,buffer = 2):
+            low = np.interp(qlow, cdf, grid)
+            high = np.interp(qhigh, cdf, grid)
+            width = high - low
+            low = max(grid.min(), low - buffer * width)
+            high = min(grid.max(), high + buffer * width)
+            print(low,high)
+            return low, high
 
-    def _posterior_and_p_on_grid(self, grid_width, ngrid,
-                                 sel_probs_coarse, eval_grid,
-                                 m, observed_target):
-        tiny = 1e-300
-        p = self.p
-        dfn, dfd = p, (m - 2) * p
+        def get_corrected_cdf(sel_probs, dfn, dfd, grid):
+            sel_log = np.asarray(sel_probs).reshape(-1)
+            log_prior = f.logpdf(grid, dfn, dfd)
+            log_post = log_prior + sel_log
+            dx = np.gradient(grid)
+            unnorm = np.exp(log_post - log_post.max())
+            Z = (unnorm * dx).sum() + 1e-300
+            corr_pdf = unnorm / Z
+            w = corr_pdf * dx
+            cdf = np.cumsum(w)
+            cdf /= cdf[-1]
+            return cdf
 
-        # grid & prior (log)
-        grid = np.linspace(1e-5, grid_width, num=ngrid)
-        log_prior = f.logpdf(grid, dfn=dfn, dfd=dfd)
-
-        # interpolate log-corrections onto grid（线性+边界钳制）
-        step = sel_probs_coarse.shape[1]
-        interp_vals = np.empty((step, grid.size))
-        for s in range(step):
-            y = sel_probs_coarse[:, s]  # 已是log项
-            vals = np.interp(grid, eval_grid, y, left=y[0], right=y[-1])
-            vals = np.nan_to_num(vals, neginf=-1e300, posinf=1e300)
-            interp_vals[s] = vals
-
-        log_sel = np.sum(interp_vals, axis=0)  # 步骤log项相加
-        log_post = log_prior + log_sel
-
-        # 稳定归一
-        M = np.max(log_post)
-        dens = np.exp(log_post - M)
-        Z = np.trapezoid(dens, grid)
-        dens /= max(Z, tiny)
-
-        # CDF & p-value（右尾）
-        cdf = cumulative_trapezoid(dens, grid, initial=0.0)
-        cdf = np.clip(cdf, 0.0, 1.0)
-
-        if observed_target <= grid[0]:
-            p_value = 1.0
-        elif observed_target >= grid[-1]:
-            p_value = float(1.0 - cdf[-1])
-        else:
-            F_obs = np.interp(observed_target, grid, cdf)
-            p_value = float(np.clip(1.0 - F_obs, 0.0, 1.0))
-
-        return p_value, grid, cdf
-
-    def selection_corrected_pvalue(self, c1, c2, eval_grid, P2, R0, R1, S,
-                                   observed_target, grid_width0, ngrid0=512,
-                                   tail_tol=1e-8, rel_tol=1e-5, abs_tol=1e-6,
-                                   max_expand=10, max_refine=5):
-        # 先算粗层校正
-        sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, eval_grid, P2, R0, R1, S)
-        m = len(c1.points) + len(c2.points)
-        dfn, dfd = self.p, (m - 2) * self.p
-
-        # ① 区间自适应：确保右尾质量小
-        grid_width = max(float(grid_width0),
-                         float(observed_target * 1.5),
-                         float(f.ppf(1 - tail_tol / 10, dfn, dfd)))
-        for _ in range(max_expand):
-            pval, grid, cdf = self._posterior_and_p_on_grid(grid_width, ngrid0,
-                                                            sel_probs_coarse, eval_grid,
-                                                            m, observed_target)
-            right_tail = 1.0 - cdf[-1]
-            if right_tail <= tail_tol:
-                break
-            grid_width *= 2.0
-
-        # ② 分辨率自适应：ngrid 翻倍直到收敛
-        ngrid = ngrid0
-        p1 = pval
-        for _ in range(max_refine):
-            p2, _, _ = self._posterior_and_p_on_grid(grid_width, ngrid * 2,
-                                                     sel_probs_coarse, eval_grid,
-                                                     m, observed_target)
-            if abs(p2 - p1) <= max(abs_tol, rel_tol * max(1.0, p2)):
-                p1, ngrid = p2, ngrid * 2
-                break
-            p1, ngrid = p2, ngrid * 2
-
-        # 返回最终结果（必要时你也可以把 grid/cdf 一起返回做诊断）
-        return p1, {"grid_width": grid_width, "ngrid": ngrid}
-
-
-    def merge_inference_F_random_pair_grid(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15):
         def create_indicator_diagonal_matrix(index_list, n):
             diag = np.zeros(n)
             diag[index_list] = 1
             return np.diag(diag), diag
-
+        low = 0
+        high = grid_width
         if self.tau != 0:
             nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
             p_node_1 = c1
@@ -1162,13 +1104,7 @@ class AgglomerativeClustering:
                 stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
                 observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
                             np.linalg.norm(P1 @ self.X, 'fro') ** 2)
-                # print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
-                # print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
-                # print(observed_target)
-                # print("Are they close?", np.allclose(self.X, (np.sqrt(observed_target/(m-2+observed_target)) * R0 + np.sqrt((m-2)/(m-2+observed_target)) * R1) *np.sqrt(S) + P2 @ self.X))
-                # projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
-                # print("Projection error (should be close to 0):", projection_error)
-                # print("obs:",observed_target)
+
                 if ncoarse is not None:
                     coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
                     eval_grid = coarse_grid
@@ -1192,13 +1128,50 @@ class AgglomerativeClustering:
                             num += posterior[g]
                     p_value = num / sum
                 else:
-                    p_value, diag = self.selection_corrected_pvalue(
-                        c1, c2, eval_grid, P2, R0, R1, S,
-                        observed_target=observed_target,
-                        grid_width0=grid_width,  # 你原本传入/估计的初值
-                        ngrid0=ngrid  # 你原本用的点数
-                    )
+                    grid = np.linspace(0.00001, grid_width, num=ngrid)
+                    dfn, dfd = self.p, (m - 2) * self.p
+                    sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, eval_grid, P2, R0, R1, S)
+                    step = sel_probs_coarse.shape[1]
 
+
+                    #intropolation to get correction on fine grid
+                    interpolation = np.array([
+                        interp1d(eval_grid, sel_probs_coarse[:, s],
+                                 kind='quadratic',
+                                 bounds_error=False,
+                                 fill_value='extrapolate')(grid)
+                        for s in range(step)
+                    ])
+                    sel_probs = interpolation.sum(axis=0)
+
+
+                    #compute corrected cdf to get shorter grid
+                    corr_cdf = get_corrected_cdf(sel_probs, dfn, dfd, grid)
+                    low, high = get_fine_grid(corr_cdf,grid)
+                    new_coarse_grid = np.linspace(low,high,ncoarse)
+                    fine_grid = np.linspace(low,high,ngrid)
+
+                    sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, new_coarse_grid, P2, R0, R1, S)
+                    interpolation = np.array([
+                        interp1d(new_coarse_grid, sel_probs_coarse[:, s],
+                                 kind='quadratic',
+                                 bounds_error=False,
+                                 fill_value='extrapolate')(fine_grid)
+                        for s in range(step)
+                    ])
+                    log_prior = f.logpdf(x=fine_grid, dfn=dfn, dfd=dfd)
+                    sel_probs = interpolation.sum(axis=0)
+                    log_post = log_prior + sel_probs
+                    posterior = np.exp(log_post)
+
+                    posterior = posterior / np.max(posterior)
+                    sum = 0
+                    num = 0
+                    for g in range(ngrid):
+                        sum += posterior[g]
+                        if grid[g] >= (observed_target):
+                            num += posterior[g]
+                    p_value = num / sum
         else:
             nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
             p_node_1 = c1
@@ -1234,4 +1207,4 @@ class AgglomerativeClustering:
                         num += posterior[g]
                 p_value = num / sum
 
-        return (p_value, observed_target)
+        return (p_value, observed_target, sel_probs, low, high)
