@@ -314,7 +314,7 @@ def run_trial_random_pair(n, p, sigma, K, tau_list, linkage):
         c1 = model.K_clusters[0]
         c2 = model.K_clusters[1]
 
-        p_val, _, _ = model.merge_inference_F_random_pair(c1,c2, grid_width=10, ncoarse=20, ngrid=2000)
+        p_val, _, _ = model.merge_inference_F_random_pair_grid(c1,c2, grid_width=70, ncoarse=20, ngrid=2000)
         trial_results[tau] = p_val
 
     return trial_results
@@ -791,7 +791,7 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
         non_alternative = len(unique_labels)== 1
         #if tau < 0.05:
         #    grid_width = 40
-        p_val, _ = model.merge_inference_F_random_pair_grid(c1, c2, grid_width= 70, ncoarse=20, ngrid=1000)
+        p_val, _,_ = model.merge_inference_F_random_pair_grid(c1, c2, grid_width= 70, ncoarse=20, ngrid=1000)
         p_values.append(p_val)
         if not non_alternative:
             recovery += 1

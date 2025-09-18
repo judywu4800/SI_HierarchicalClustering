@@ -1169,7 +1169,7 @@ class AgglomerativeClustering:
                     num = 0
                     for g in range(ngrid):
                         sum += posterior[g]
-                        if grid[g] >= (observed_target):
+                        if fine_grid[g] >= (observed_target):
                             num += posterior[g]
                     p_value = num / sum
         else:
@@ -1207,4 +1207,4 @@ class AgglomerativeClustering:
                         num += posterior[g]
                 p_value = num / sum
 
-        return (p_value, observed_target, sel_probs, low, high)
+        return (p_value, observed_target, sel_probs)
