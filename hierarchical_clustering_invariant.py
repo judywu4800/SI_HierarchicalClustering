@@ -1049,8 +1049,8 @@ class AgglomerativeClustering:
 
         return (p_value, observed_target, sel_probs)
     ###########TODO: grid adjustment
-    def merge_inference_F_random_pair_grid(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15, buffer = 0.05):
-        def get_fine_grid(cdf, grid, qlow = 0.005, qhigh = 0.995,buffer = 2):
+    def merge_inference_F_random_pair_grid(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15):
+        def get_fine_grid(cdf, grid, qlow = 0.005, qhigh = 0.995,buffer = 4):
             low = np.interp(qlow, cdf, grid)
             high = np.interp(qhigh, cdf, grid)
             width = high - low
@@ -1149,7 +1149,7 @@ class AgglomerativeClustering:
                     corr_cdf = get_corrected_cdf(sel_probs, dfn, dfd, grid)
                     low, high = get_fine_grid(corr_cdf,grid)
                     new_coarse_grid = np.linspace(low,high,ncoarse)
-                    fine_grid = np.linspace(low,high,ngrid)
+                    fine_grid = np.linspace(low,high,ngrid*2)
 
                     sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, new_coarse_grid, P2, R0, R1, S)
                     interpolation = np.array([

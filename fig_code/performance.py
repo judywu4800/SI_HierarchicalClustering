@@ -15,18 +15,18 @@ import os
 if __name__ == '__main__':
     random.seed(0)
     n_each = 10
-    delta = 6
+    delta = 8
     sigma = 1
     output_dir = os.path.join("figures")
     os.makedirs(output_dir, exist_ok=True)
 
     tau_values = [0,0.01,0.05, 0.1,0.5,1,2,5]
-    n_runs = 1000
+    n_runs = 500
     n_clusters = 3
     # Data collection
 
     results = []
-    '''
+
     for tau in tau_values:
         for _ in range(n_runs):
             X, y = generate_data_barbers(n_each, delta, sigma)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # Create side-by-side boxplots
     plt.figure(figsize=(5, 5))
     sns.boxplot(data=df, x='Tau', y='WCSS/TSS', hue='Method', palette='Set2')
-    plt.title('Comparison of WCSS/TSS: Normal vs. Randomized Clustering')
+    plt.title('Comparison of WCSS/TSS')
     plt.xlabel('Tau (Scale of Randomization)')
     plt.ylabel('WCSS/TSS')
     plt.legend(title='Method',loc = 'lower right')
@@ -86,14 +86,14 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(5, 5))
     sns.boxplot(data=df_ari, x='Tau', y='ARI', hue='Method', palette='Set2')
-    plt.title('Adjusted Rand Index (ARI) vs. Randomization Tau')
+    plt.title('ARI vs. Randomization Tau')
     plt.xlabel('Tau (Scale of Randomization)')
     plt.ylabel('Adjusted Rand Index (ARI)')
     plt.legend(title='Method', loc='upper right')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.savefig(os.path.join(output_dir, "ari.png"))
     plt.close()
-    '''
+
 
     for tau in tau_values:
         recovery = 0
