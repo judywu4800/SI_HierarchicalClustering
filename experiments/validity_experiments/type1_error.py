@@ -23,7 +23,8 @@ if __name__ == "__main__":
                                                  num_repeats=num_repeats, n_jobs=n_jobs)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"results_type1_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"results_type1_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     df_results.to_csv(os.path.join(output_dir, "type1_error_results.csv"), index=False)

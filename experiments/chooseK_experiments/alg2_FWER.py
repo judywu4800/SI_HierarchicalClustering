@@ -73,7 +73,8 @@ if __name__ == "__main__":
     df_results = pd.DataFrame(results)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"results_fwer_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"results_fwer_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     output_file = os.path.join(output_dir, "fwer_results.csv")

@@ -80,7 +80,8 @@ if __name__ == '__main__':
     true_K=3
     tau_list = [0,0.005,0.01,0.05,0.1,0.5,1]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    outdir = os.path.join("../../results", f"bestK_results_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    outdir = os.path.join(base_dir, "results", f"bestK_results_{timestamp}")
     os.makedirs(outdir, exist_ok=True)
 
     get_histograms_parallel_tau(n, true_K, tau_list, outdir, total_alpha=0.05, num_trials=100,equal_alpha=False)

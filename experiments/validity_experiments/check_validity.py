@@ -19,7 +19,8 @@ if __name__ == "__main__":
     n_jobs = -1
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"pval_results_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"pval_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_random_pair_parallel(

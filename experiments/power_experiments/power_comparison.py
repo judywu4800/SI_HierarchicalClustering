@@ -147,7 +147,8 @@ if __name__ == "__main__":
     df_all = pd.concat([df_gao, df_barber, df_randomized], ignore_index=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"combined_power_results_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"combined_power_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
     csv_path = os.path.join(output_dir, "power_comparison.csv")
     df_all.to_csv(csv_path, index=False)

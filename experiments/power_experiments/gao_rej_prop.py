@@ -92,7 +92,8 @@ if __name__ == "__main__":
     })
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"rejprop_gao_results_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"rejprop_gao_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     csv_path = os.path.join(output_dir, "rejprop_and_recovery_gao.csv")

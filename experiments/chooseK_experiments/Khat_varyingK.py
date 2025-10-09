@@ -118,7 +118,8 @@ if __name__ == "__main__":
     #sd_list = [0.1, 0.5, 0.8, 1, 2, 5]
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"k_hat_boxplot_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir,"results", f"k_hat_boxplot_{timestamp}")
     os.makedirs("results", exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 

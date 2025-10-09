@@ -21,7 +21,8 @@ if __name__ == "__main__":
 
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"rejprop_delta_results_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"rejprop_delta_results_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
     prop_results, recovery_results, success_results = check_reject_prop_multi_tau_delta_random_pair(

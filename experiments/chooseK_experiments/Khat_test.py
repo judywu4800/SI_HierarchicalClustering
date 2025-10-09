@@ -197,7 +197,8 @@ if __name__ == "__main__":
     delta_list = [8,10,12]
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join("../../results", f"k_hat_boxplot_{timestamp}")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}")
     os.makedirs("results", exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
