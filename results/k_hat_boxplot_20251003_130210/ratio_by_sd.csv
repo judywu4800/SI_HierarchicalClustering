@@ -1,0 +1,8 @@
+delta,P(K<=3| Preserve=True),P(K<=3| Preserve=False),P(Preserve = False),P(K<=3| Preserve_gap=True),P(K<=3| Preserve_g=False),P(Preserve_Gap= False)
+6,,0.0,1.0,,1.0,1.0
+8,1.0,,0.0,1.0,,0.0
+10,,0.0,1.0,1.0,,0.0
+12,1.0,,0.0,1.0,,0.0
+14,1.0,,0.0,1.0,,0.0
+16,1.0,,0.0,1.0,,0.0
+18,1.0,,0.0,1.0,,0.0
