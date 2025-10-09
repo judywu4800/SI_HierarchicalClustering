@@ -1,0 +1,43 @@
+# =========================
+# Python and build artifacts
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.DS_Store
+
+# =========================
+# Experiment results and logs
+# =========================
+results/
+logs/
+*.out
+*.err
+*.csv
+*.npz
+*.npy
+*.pkl
+*.png
+*.pdf
+
+# =========================
+# IDE or environment files
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
+.venv/
+*.ipynb_checkpoints/
+
+# =========================
+# Conda / environment / system
+# =========================
+*.lock
+*.yml
+*.yaml
+*.json
+!*.sh
+!*.slurm
