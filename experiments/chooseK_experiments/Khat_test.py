@@ -161,7 +161,7 @@ def one_replication_std(delta,n=30, tau=0.1, total_alpha=0.05,
                     K_max=30, B=50, method="complete"):
     #X, labels = make_blobs(n_samples=n, n_features=p, centers=K_true, cluster_std=cl_sd)
     #X, labels = generate_data_barbers(n_each = 10, delta = delta, sigma=1)
-    X, labels = generate_3cluster_data(30,10,delta, 1)
+    X, labels = generate_3cluster_data(30,5,delta, 1)
     # --- Proposed method---
     alpha_list = np.full(n - 1, total_alpha / (n - 1))
     K_hat_F, _, _,model = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
@@ -194,15 +194,15 @@ if __name__ == "__main__":
     results_F = {}
     #K_list = [1,3,5,7,9,11]
     #sd_list = [0.1,0.5,0.8,1,2,3,5]
-    delta_list = [8,10,12]
-
+    delta_list = [6,8,10,12,14]
+    p = 5
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}")
+    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}_p={p}")
     os.makedirs("results", exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    results = simulate_results_std(delta_list, n_rep=10, n_jobs=-1)
+    results = simulate_results_std(delta_list, n_rep=100, n_jobs=-1)
     rows = []
     for sd, result in results.items():
         for kf, kg, pr,pg in zip(result["Proposed Method"], result["Gap Test"], result["Preserve"], result["Preserve_Gap"]):
