@@ -8,27 +8,40 @@ from scipy.stats import multivariate_normal,f
 from joblib import Parallel, delayed
 from itertools import combinations
 
-def generate_data_barbers(n_each, delta, sigma, true_mean = False):
-    cov = np.eye(2) * sigma**2
+def generate_data_barbers(n_each, delta, sigma, true_mean=False):
+    # ---- Handle sigma input ----
+    # if scalar: make it sigma^2 * I
+    if np.isscalar(sigma):
+        cov = np.eye(2) * (sigma ** 2)
+    else:
+        cov = np.asarray(sigma)
+        if cov.shape[0] != cov.shape[1]:
+            raise ValueError("Sigma must be a square covariance matrix.")
+        if cov.shape[0] != 2:
+            raise ValueError(f"Expected 2D features, got covariance matrix of shape {cov.shape}")
+
+    # ---- Define cluster means ----
     mu1 = np.array([0, 0])
     mu2 = np.array([delta, 0])
-    mu3 = np.array([delta / 2, np.sqrt(delta ** 2 - delta ** 2 / 4)])
-    #mu1 = np.array([0, 0])
-    #mu2 = np.array([delta, 0])
-    #mu3 = np.array([2*delta, 0])
+    mu3 = np.array([delta / 2, np.sqrt(delta ** 2 - (delta ** 2) / 4)])
 
+    # ---- Generate data ----
     X1 = multivariate_normal.rvs(mean=mu1, cov=cov, size=n_each)
     X2 = multivariate_normal.rvs(mean=mu2, cov=cov, size=n_each)
     X3 = multivariate_normal.rvs(mean=mu3, cov=cov, size=n_each)
 
+    # ---- Labels ----
     labels1 = np.ones(n_each)
     labels2 = np.ones(n_each) * 2
     labels3 = np.ones(n_each) * 3
 
     X = np.vstack([X1, X2, X3])
     labels = np.concatenate([labels1, labels2, labels3])
+
+    # ---- True mean per point ----
     cluster_means = np.vstack([mu1, mu2, mu3])
     mu = cluster_means[labels.astype(int) - 1]
+
     if true_mean:
         return X, labels, mu
     else:
@@ -46,10 +59,24 @@ def fun_gen_X(n, p, ss, delta=0):
 
     return X
 
-def generate_null_data(n, p, mu, sigma):
-    mu = np.array(mu)  # Ensure mu is an array
-    cov = (sigma ** 2) * np.eye(p)  # Covariance matrix
-    return np.random.multivariate_normal(mu, cov, size=n)
+def generate_null_data(n, p, mu=None, sigma=1.0):
+    if mu is None:
+        mu = np.zeros(p)
+    mu = np.asarray(mu)
+
+    # handle sigma
+    if np.isscalar(sigma):
+        Sigma = (sigma ** 2) * np.eye(p)
+    else:
+        Sigma = np.asarray(sigma)
+        if Sigma.shape != (p, p):
+            raise ValueError(f"Covariance matrix must be {p}×{p}, got {Sigma.shape}.")
+
+    if mu.shape[0] != p:
+        raise ValueError(f"Mean vector length {mu.shape[0]} does not match p={p}.")
+
+    X = np.random.multivariate_normal(mean=mu, cov=Sigma, size=n)
+    return X
 
 def compute_nu(node,n):
     # return the projection direction from the given node

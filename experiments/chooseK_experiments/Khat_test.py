@@ -7,11 +7,12 @@ import seaborn as sns
 import os
 from datetime import datetime
 from sklearn.datasets import make_blobs
-from utils import generate_3cluster_data
+from utils import generate_3cluster_data, generate_data_barbers
 from joblib import Parallel, delayed
 import random
 from hierarchical_clustering_invariant import *
 from scipy.cluster.hierarchy import linkage, fcluster
+from find_best_K import find_best_K_chi
 
 def generate_clustered_data(n=30, p=10, delta=3.0, sigma=1.0, random_state=None):
 
@@ -30,7 +31,6 @@ def generate_clustered_data(n=30, p=10, delta=3.0, sigma=1.0, random_state=None)
     ])
     X_noise = rng.normal(0, 3, size=(n, p - 2))
 
-    # 拼接成 n × p
     X = np.hstack([X_signal, X_noise])
     labels = np.repeat(np.arange(3), n_per_cluster)
     return X, labels
@@ -198,17 +198,22 @@ def one_replication_std(delta,n=30, tau=0.1, total_alpha=0.05,
     #X, labels = generate_data_barbers(n_each = 10, delta = delta, sigma=1)
     #X, labels = generate_3cluster_data(30,5,delta, 1)
     #X, labels = generate_3cluster_data_varsize(n= n, p=30,delta=delta, sigma = 1.0, cluster_sizes=[10,10,10])
-    X, labels = generate_clustered_data(n = n, p=20, delta=delta, sigma=1)
+    sigma = np.array([
+        [1.0, 0.3],
+        [0.3, 1.0]
+    ])
+    X, labels = generate_data_barbers(10, delta=delta, sigma=sigma)
     # --- Proposed method---
     alpha_list = np.full(n - 1, total_alpha / (n - 1))
-    K_hat_F, _, _,model = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
+    K_hat_F, _, _,model = find_best_K_chi(X, sigma = sigma, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
 
-    labels_est = get_labels_at_K(model, max(K_hat_F, 3))
-    preserve = check_preserve(labels, labels_est)
+    #labels_est = get_labels_at_K(model, max(K_hat_F, 3))
+    #preserve = check_preserve(labels, labels_est)
 
     # --- Gap test---
-    K_hat_gap, _, _, no_cross_g = gap_statistic(X, K_max=K_max, B=B, method=method, true_labels=labels)
-    return K_hat_F, K_hat_gap, preserve, no_cross_g
+    #K_hat_gap, _, _, no_cross_g = gap_statistic(X, K_max=K_max, B=B, method=method, true_labels=labels)
+    K_hat_gap, _, _, _ = gap_statistic(X, K_max=K_max, B=B, method=method, true_labels=labels)
+    return K_hat_F, K_hat_gap #, preserve, no_cross_g
 def simulate_results_std(delta_list, n_rep=100, n_jobs=-1, **kwargs):
     """
     Run simulations in parallel for different true K.
@@ -219,8 +224,10 @@ def simulate_results_std(delta_list, n_rep=100, n_jobs=-1, **kwargs):
         pairs = Parallel(n_jobs=n_jobs, verbose=10)(
             delayed(one_replication_std)(delta, **kwargs) for _ in range(n_rep)
         )
-        k_hats_F, k_hats_gap, no_cross, no_cross_g = zip(*pairs)
-        results[delta] = {"Proposed Method": list(k_hats_F), "Gap Test": list(k_hats_gap), "Preserve": no_cross, "Preserve_Gap": no_cross_g}
+       # k_hats_F, k_hats_gap, no_cross, no_cross_g = zip(*pairs)
+        k_hats_F, k_hats_gap = zip(*pairs)
+        #results[delta] = {"Proposed Method": list(k_hats_F), "Gap Test": list(k_hats_gap), "Preserve": no_cross, "Preserve_Gap": no_cross_g}
+        results[delta] = {"Proposed Method": list(k_hats_F), "Gap Test": list(k_hats_gap)}
     return results
 
 
@@ -232,7 +239,7 @@ if __name__ == "__main__":
     #K_list = [1,3,5,7,9,11]
     delta_list = [6,8,10,12,14]
     n = 30
-    p = 20
+    p = 2
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}_n={n}_p={p}")
@@ -248,6 +255,7 @@ if __name__ == "__main__":
     df = pd.DataFrame(rows, columns=["delta", "K_hat_F", "K_hat_gap", "Preserve", "Preserve_Gap"])
     df.to_csv(os.path.join(output_dir, "k_hat_results.csv"), index=False)
 
+    '''
     result_corollary = (
         df.groupby("delta")
         .apply(lambda g: pd.Series({
@@ -264,7 +272,9 @@ if __name__ == "__main__":
         .reset_index()
     )
 
-    result_corollary.to_csv(os.path.join(output_dir, "ratio_by_sd.csv"), index=False)
+    result_corollary.to_csv(os.path.join(output_dir, "ratio_by_sd.csv"), index=False)    
+    '''
+
 
     # ---- Boxplot comparison ----
     plt.figure(figsize=(8, 6))
@@ -322,7 +332,8 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(output_dir, "Heatmap_side_by_side.png"))
     plt.close()
 
-    # ---- Line plot: Compare P(K<=3 | Preserve=True) vs 1 - alpha ----
+    '''
+# ---- Line plot: Compare P(K<=3 | Preserve=True) vs 1 - alpha ----
     alpha = 0.05
     plt.figure(figsize=(8, 6))
 
@@ -347,4 +358,5 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     plt.savefig(os.path.join(output_dir, "corollary_verification_lineplot.png"))
-    plt.close()
+    plt.close()     
+    '''
