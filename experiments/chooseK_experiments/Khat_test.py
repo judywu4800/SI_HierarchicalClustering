@@ -13,6 +13,65 @@ import random
 from hierarchical_clustering_invariant import *
 from scipy.cluster.hierarchy import linkage, fcluster
 
+def generate_clustered_data(n=30, p=10, delta=3.0, sigma=1.0, random_state=None):
+
+    rng = np.random.default_rng(random_state)
+    n_per_cluster = n // 3
+
+    mu = np.array([
+        [-delta, 0],
+        [delta, 0],
+        [0, delta]
+    ])
+
+    X_signal = np.vstack([
+        rng.normal(mu[k], sigma, size=(n_per_cluster, 2))
+        for k in range(3)
+    ])
+    X_noise = rng.normal(0, 3, size=(n, p - 2))
+
+    # 拼接成 n × p
+    X = np.hstack([X_signal, X_noise])
+    labels = np.repeat(np.arange(3), n_per_cluster)
+    return X, labels
+
+
+def generate_3cluster_data_varsize(n=50, p=2, delta=1.0, sigma=1.0,
+                                   cluster_sizes=None, random_state=None, return_labels=True):
+    rng = np.random.default_rng(random_state)
+
+    # handle cluster sizes
+    if cluster_sizes is None:
+        if n % 3 != 0:
+            raise ValueError("If cluster_sizes is None, n must be divisible by 3.")
+        cluster_sizes = (n // 3, n // 3, n // 3)
+    else:
+        if len(cluster_sizes) != 3:
+            raise ValueError("cluster_sizes must be a tuple/list of 3 integers.")
+        if sum(cluster_sizes) != n:
+            raise ValueError(f"sum(cluster_sizes)={sum(cluster_sizes)} must equal n={n}.")
+
+    # define means (equilateral triangle in 2D, generalized in higher dimensions)
+    mu1 = np.zeros(p)
+    mu1[0] = -delta / 2
+
+    mu2 = np.zeros(p)
+    mu2[-1] = np.sqrt(3) * delta / 2
+
+    mu3 = np.zeros(p)
+    mu3[0] = delta / 2
+
+    X1 = rng.normal(loc=mu1, scale=sigma, size=(cluster_sizes[0], p))
+    X2 = rng.normal(loc=mu2, scale=sigma, size=(cluster_sizes[1], p))
+    X3 = rng.normal(loc=mu3, scale=sigma, size=(cluster_sizes[2], p))
+
+    X = np.vstack([X1, X2, X3])
+    labels = np.array([0]*cluster_sizes[0] + [1]*cluster_sizes[1] + [2]*cluster_sizes[2])
+
+    if return_labels:
+        return X, labels
+    else:
+        return X
 def find_best_K_F(X, tau, alpha_list, n_threshold=2, linkage="complete", total_alpha=0.05):
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
@@ -94,30 +153,6 @@ def check_preserve(true_labels, est_labels):
     return True
 
 def gap_statistic(X, K_max=30, B=50, method="complete", true_labels = None, random_state=None):
-    """
-    Deterministic Gap Statistic (Tibshirani et al. 2001) using hierarchical clustering.
-
-    Parameters
-    ----------
-    X : array, shape (n_samples, n_features)
-        Input data
-    K_max : int
-        Max number of clusters to consider
-    B : int
-        Number of bootstrap reference datasets
-    method : str
-        Linkage method ('ward', 'complete', 'average', etc.)
-    random_state : int or None
-
-    Returns
-    -------
-    best_K : int
-        Estimated number of clusters (hat{K})
-    gaps : np.array
-        Gap values for K = 1..K_max
-    sk : np.array
-        Standard error for each K
-    """
     rng = np.random.RandomState(random_state)
 
     mins = X.min(axis=0)
@@ -161,7 +196,9 @@ def one_replication_std(delta,n=30, tau=0.1, total_alpha=0.05,
                     K_max=30, B=50, method="complete"):
     #X, labels = make_blobs(n_samples=n, n_features=p, centers=K_true, cluster_std=cl_sd)
     #X, labels = generate_data_barbers(n_each = 10, delta = delta, sigma=1)
-    X, labels = generate_3cluster_data(30,5,delta, 1)
+    #X, labels = generate_3cluster_data(30,5,delta, 1)
+    #X, labels = generate_3cluster_data_varsize(n= n, p=30,delta=delta, sigma = 1.0, cluster_sizes=[10,10,10])
+    X, labels = generate_clustered_data(n = n, p=20, delta=delta, sigma=1)
     # --- Proposed method---
     alpha_list = np.full(n - 1, total_alpha / (n - 1))
     K_hat_F, _, _,model = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
@@ -193,12 +230,12 @@ if __name__ == "__main__":
     random.seed(0)
     results_F = {}
     #K_list = [1,3,5,7,9,11]
-    #sd_list = [0.1,0.5,0.8,1,2,3,5]
     delta_list = [6,8,10,12,14]
-    p = 5
+    n = 30
+    p = 20
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}_p={p}")
+    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_{timestamp}_n={n}_p={p}")
     os.makedirs("results", exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
