@@ -178,7 +178,7 @@ def check_p_value_uniformity(n, p, sigma, K, tau, layer, linkage="complete", num
         #c1 = model.K_clusters[0]
         #c2 = model.K_clusters[1]
         #p_value, obs, sel_corrected = model.merge_inference_F_random_pair_grid(c1,c2, grid_width=70, ncoarse=20, ngrid=2000)
-        p_value, obs, sel_corrected = model.merge_inference_F_grid(node, grid_width=120, ncoarse=50,ngrid=2000)
+        p_value, obs, sel_corrected = model.merge_inference_F_grid(node, grid_width=180, ncoarse=20,ngrid=2000)
         p_value_n = naive_p_value(X, K, layer, linkage)
         if not (np.isnan(p_value) and np.isnan(p_value_n)):
             p_values.append(p_value)

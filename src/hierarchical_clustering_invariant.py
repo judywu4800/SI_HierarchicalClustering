@@ -25,7 +25,7 @@ class ClusterNode:
 
 
 class AgglomerativeClustering:
-    def __init__(self, X, sigma = None, n_clusters=2, tau=1, affinity='euclidean', linkage='single'):
+    def __init__(self, X, sigma = None, n_clusters=2, tau=1, affinity='euclidean', linkage='single', random_state=None):
         self.X = X
         self.sigma = sigma
         self.n = np.shape(X)[0]
@@ -62,6 +62,12 @@ class AgglomerativeClustering:
             from scipy.linalg import sqrtm
             inv_sqrt = np.linalg.inv(sqrtm(sigma))
             self.Z = X @ inv_sqrt  # whitened feature space
+
+        self.random_state = random_state
+        if random_state is None:
+            self.rng = np.random.default_rng()
+        else:
+            self.rng = np.random.default_rng(random_state)
 
     def fit(self, dendrogram = False):
         self.n_samples = self.X.shape[0]
@@ -116,13 +122,14 @@ class AgglomerativeClustering:
     def _find_winning_clusters(self, distance_matrix):
         """Find the indices of the two closest clusters.
             i,j = argmin d(G_i,G_j; X) + W(G_i,G_j)"""
+        clusters_sorted = sorted(self.cluster_nodes, key=lambda c: min(c.points))
         closest_clusters = (-1, -1)
         scores = []
         pair_idxs = []
         Ds = [] #array storing the pairwise distance
         if self.tau!=0:
-            for i in range(len(self.cluster_nodes)):
-                for j in range(i + 1, len(self.cluster_nodes)):
+            for i in range(len(clusters_sorted)):
+                for j in range(i + 1, len(clusters_sorted)):
                     cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                     idx = (i,j)
                     D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.Z)
@@ -133,7 +140,7 @@ class AgglomerativeClustering:
             scores = [np.exp(-(1/tau_t) * D_ij) for D_ij in Ds]
             scores_norm = scores/np.sum(scores)
             index = range(len(pair_idxs))
-            winning_cluster_idx = np.random.choice(index,1, p=scores_norm)[0]
+            winning_cluster_idx = self.rng.choice(index, 1, p=scores_norm)[0]
             winning_cluster = pair_idxs[winning_cluster_idx]
             return winning_cluster
         else:
@@ -247,26 +254,63 @@ class AgglomerativeClustering:
         bcss = tss - wcss
         return bcss
 
-    def plot_dendrogram(self, ax=None, show=True, outdir = None, save_fig = False):
-        tau = self.tau
+    def plot_dendrogram(self, ax=None, show=True, outdir=None, save_fig=False, manual_color=False):
         import matplotlib.pyplot as plt
         from scipy.cluster.hierarchy import dendrogram
+        import numpy as np, os
 
+        tau = self.tau
         linkage_matrix = np.array(self.linkage_matrix)
         K = self.n_clusters
         cut_index = len(linkage_matrix) - K
         cut_height = linkage_matrix[cut_index, 2]
 
-        # Use provided Axes or create a new one
+        clusters_at_K = self.K_clusters
+
+        def clusters_to_labels(clusters, n_samples):
+            labels = np.empty(n_samples, dtype=int)
+            for cid, cluster in enumerate(clusters):
+                for idx in cluster.points:
+                    labels[idx] = cid
+            return labels
+
+        cluster_labels = clusters_to_labels(clusters_at_K, n_samples=self.n)
+        cluster_labels = cluster_labels - cluster_labels.min() + 1
+
+        if manual_color:
+            manual_colors = ["#ff924c","#7ab13f",  "#9579d9"]
+            color_dict = {i + 1: manual_colors[i % len(manual_colors)] for i in range(K)}
+
+            def link_color_func(node_id):
+                if node_id < len(cluster_labels):
+                    return color_dict[cluster_labels[node_id]]
+                else:
+                    left_child = int(linkage_matrix[node_id - len(cluster_labels), 0])
+                    right_child = int(linkage_matrix[node_id - len(cluster_labels), 1])
+                    left_color = link_color_func(left_child)
+                    right_color = link_color_func(right_child)
+                    return left_color if left_color == right_color else "gray"
+        else:
+            link_color_func = None
+
         if ax is None:
             fig, ax = plt.subplots(figsize=(5, 5))
 
-        dendrogram(linkage_matrix, ax=ax)
-        ax.set_title("Hierarchical Clustering Dendrogram (tau = {})".format(self.tau))
-        ax.set_xlabel("Sample Index")
-        ax.set_ylabel("Distance")
-        # ax.axhline(y=cut_height, c='red', linestyle='--', label=f'Cut for K={K}')
-        # ax.legend()
+        dendrogram(
+            linkage_matrix,
+            ax=ax,
+            color_threshold=0 if manual_color else cut_height,
+            above_threshold_color="gray" if manual_color else "C0",
+            link_color_func=link_color_func,
+        )
+
+        ax.set_title(f" Randomized Hierarchical Clustering Dendrogram (tau = {self.tau})", fontsize=12)
+        ax.set_xlabel("Sample Index", fontsize=12, fontweight='bold')
+        ax.set_ylabel("Distance", fontsize=12, fontweight='bold')
+        ax.tick_params(axis='x', labelsize=8)
+        ax.tick_params(axis='y', labelsize=10)
+        for label in ax.get_xticklabels():
+            label.set_rotation(0)
 
         if show and ax is None:
             plt.show()
@@ -504,8 +548,6 @@ class AgglomerativeClustering:
             s -= 1
         return np.array(corrections)
         #return np.array(cor_prob)
-
-
     def merge_inference_F(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15):
         def create_indicator_diagonal_matrix(index_list, n):
             diag = np.zeros(n)

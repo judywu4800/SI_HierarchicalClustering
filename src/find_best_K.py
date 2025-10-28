@@ -5,24 +5,18 @@ import warnings
 import matplotlib.pyplot as plt
 
 def generate_alpha_list(n=30, total_alpha=0.05, seed=42):
-    if n % 3 != 0:
-        raise ValueError("n must be divisible by 3.")
-
     np.random.seed(seed)
-
     length = n - 1
     group_size = length // 3
-
-    # Generate unnormalized values in each group
-    large = np.random.uniform(0.003, 0.008, size=group_size)
-    medium = np.random.uniform(0.001, 0.003, size=group_size)
-    small = np.random.uniform(1e-5, 5e-4, size=length - 2 * group_size)
-
-    # Combine and normalize
+    large = np.random.uniform(0.1, 0.5, size=5)
+    medium = np.random.uniform(0.0005, 0.002, size=5)
+    #small = np.random.uniform(1e-6, 5e-4, size=length - 2 * group_size)
+    small = np.zeros(n-11)
     alpha_raw = np.concatenate([large, medium, small])
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
-
     return alpha_list
+
+
 def get_labels_at_K(model, K):
     for winning_pair, clusters in model.existing_clusters_log.items():
         if len(clusters) == K:
@@ -32,7 +26,7 @@ def get_labels_at_K(model, K):
                     labels[idx] = cid
             return labels
     raise ValueError(f"No step found with {K} clusters")
-def find_best_K_F(X, tau, alpha_list, n_threshold=2, linkage="complete", total_alpha=0.05):
+def find_best_K_F(X, tau, alpha_list, n_threshold=0.5, linkage="complete", total_alpha=0.05, rng = None):
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
         raise ValueError(
@@ -61,12 +55,12 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=2, linkage="complete", total_a
             if (n1 + n2) == 2:
                 pval = 1  # F distribution method cannot handle the case when n1+n2=2
             else:
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=180, ncoarse=30, ngrid=1000)
+                pval, _, _ = model.merge_inference_F_grid(node, grid_width=200, ncoarse=30, ngrid=1000)
 
         else:
             alpha = np.max(alpha_list)  # More power for larger clusters
             idx = np.argmax(alpha_list)
-            pval, _, _ = model.merge_inference_F_grid(node, grid_width=180, ncoarse=30, ngrid=1000)
+            pval, _, _ = model.merge_inference_F_grid(node, grid_width=200, ncoarse=30, ngrid=1000)
         alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)
@@ -78,7 +72,7 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=2, linkage="complete", total_a
     return (K_hat, p_values, alpha_seq, labels_est)
 
 
-def find_best_K_chi(X, tau, alpha_list, sigma = None, n_threshold=2, linkage="complete", total_alpha=0.05):
+def find_best_K_chi(X, tau, alpha_list, sigma = None, n_threshold=0.5, linkage="complete", total_alpha=0.05):
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
         raise ValueError(
