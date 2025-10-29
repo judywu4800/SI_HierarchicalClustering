@@ -35,8 +35,8 @@ if __name__ == "__main__":
     recovery_sub = df_recovery[df_recovery['Tau'].isin(subset_tau)].copy()
     rec_x_pos = range(len(subset_tau))
 
-    custom_colors = ["#FF758F", "#BFE8A4", "#9CBE86", "#7B9669", "#5B704D", "#3D4C33", "#222B1B"]
-
+    custom_colors = ["#FF758F", "#BFE8A4", "#9CBE86", "#7B9669", "#5B704D", "#3D4C33",  "#222B1B"]
+    #custom_colors = ['#cc5e72', '#99ba83', '#7d986b', '#627854', '#495a3e', '#313d29', '#1b2216']
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
     sns.boxplot(data=wcss_sub, x='method', y='WCSS/TSS', hue='method',

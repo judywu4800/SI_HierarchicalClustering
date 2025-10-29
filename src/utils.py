@@ -8,7 +8,7 @@ from scipy.stats import multivariate_normal,f
 from joblib import Parallel, delayed
 from itertools import combinations
 
-def generate_data_barbers(n_each, delta, sigma, true_mean=False):
+def generate_data_barbers(n_each, delta, sigma, true_mean=False, rng=None):
     # ---- Handle sigma input ----
     # if scalar: make it sigma^2 * I
     if np.isscalar(sigma):
@@ -20,15 +20,17 @@ def generate_data_barbers(n_each, delta, sigma, true_mean=False):
         if cov.shape[0] != 2:
             raise ValueError(f"Expected 2D features, got covariance matrix of shape {cov.shape}")
 
+    if rng is None:
+        rng = np.random.default_rng()
     # ---- Define cluster means ----
     mu1 = np.array([0, 0])
     mu2 = np.array([delta, 0])
     mu3 = np.array([delta / 2, np.sqrt(delta ** 2 - (delta ** 2) / 4)])
 
     # ---- Generate data ----
-    X1 = multivariate_normal.rvs(mean=mu1, cov=cov, size=n_each)
-    X2 = multivariate_normal.rvs(mean=mu2, cov=cov, size=n_each)
-    X3 = multivariate_normal.rvs(mean=mu3, cov=cov, size=n_each)
+    X1 = rng.multivariate_normal(mean=mu1, cov=cov, size=n_each)
+    X2 = rng.multivariate_normal(mean=mu2, cov=cov, size=n_each)
+    X3 = rng.multivariate_normal(mean=mu3, cov=cov, size=n_each)
 
     # ---- Labels ----
     labels1 = np.ones(n_each)
