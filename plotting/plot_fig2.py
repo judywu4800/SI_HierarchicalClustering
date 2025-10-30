@@ -24,8 +24,8 @@ if __name__ == "__main__":
     df_recovery = df_recovery.groupby(['Tau', 'Method'])['Recovery'].mean().reset_index()
     df_recovery.rename(columns={'Recovery': 'Recovery Probability'}, inplace=True)
 
-    subset_tau = [0,0.05,0.1,0.25,0.5,1,5]
-    labels = ["Naive","RAC(0.05)", "RAC(0.1)", "RAC(0.25)", "RAC(0.5)", "RAC(1)","RAC(5)"]
+    subset_tau = [0,0.025,0.05,0.1,0.25,0.5,1,5]
+    labels = ["Naive","RAC(0.025)","RAC(0.05)", "RAC(0.1)", "RAC(0.25)", "RAC(0.5)", "RAC(1)","RAC(5)"]
     rename_map = dict(zip(subset_tau, labels))
 
     wcss_sub = df_wcss[df_wcss['Tau'].isin(subset_tau)].copy()
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     rec_x_pos = range(len(subset_tau))
 
     custom_colors = ["#FF758F", "#BFE8A4", "#9CBE86", "#7B9669", "#5B704D", "#3D4C33",  "#222B1B"]
+    custom_colors = ["#FF758F","#C4EAA7", "#A9D595", "#8DBE7E","#729869", "#587450", "#3F5237", "#252D1D"]
     #custom_colors = ['#cc5e72', '#99ba83', '#7d986b', '#627854', '#495a3e', '#313d29', '#1b2216']
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -44,18 +45,18 @@ if __name__ == "__main__":
     axes[0].set_title('Boxplot for WCSS/TSS', fontsize=14, fontweight='bold')
     axes[0].set_xlabel("Method", fontsize=12)
     axes[0].set_ylabel("WCSS/TSS", fontsize=12)
-    axes[0].tick_params(axis='x', labelsize=9)
+    axes[0].tick_params(axis='x', labelsize=7)
 
     sns.boxplot(data=ari_sub, x='method', y='ARI', hue='method', palette=custom_colors, ax = axes[1])
     axes[1].set_title('Boxplot for ARI', fontsize=14, fontweight='bold')
     axes[1].set_xlabel("Method", fontsize=12)
     axes[1].set_ylabel("ARI", fontsize=12)
-    axes[1].tick_params(axis='x', labelsize=9)
+    axes[1].tick_params(axis='x', labelsize=7)
 
     axes[2].plot(rec_x_pos, recovery_sub['Recovery Probability'], marker='o', color="#222B1B", linewidth=2)
     axes[2].set_xticks(rec_x_pos)
     axes[2].set_xticklabels(labels)
-    axes[2].tick_params(axis='x', labelsize=9)
+    axes[2].tick_params(axis='x', labelsize=7)
     axes[2].set_xlabel("Method", fontsize=12)
     axes[2].set_ylabel("Recovery Probability", fontsize=12)
     axes[2].set_title("Line Plot for Recovery Probability", fontsize=14, fontweight='bold')

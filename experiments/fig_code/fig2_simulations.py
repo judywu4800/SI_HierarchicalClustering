@@ -17,7 +17,7 @@ if __name__ == '__main__':
     random.seed(0)
     np.random.seed(0)
     n_each = 10
-    delta = 8
+    delta = 6
     sigma = 1
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw")

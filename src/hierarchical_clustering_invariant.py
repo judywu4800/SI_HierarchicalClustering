@@ -56,12 +56,13 @@ class AgglomerativeClustering:
         self.node_to_id = {}
 
         # handling non-spherical data case
-        if np.isscalar(sigma) or sigma is None:
-            self.Z = X
-        else:
-            from scipy.linalg import sqrtm
-            inv_sqrt = np.linalg.inv(sqrtm(sigma))
-            self.Z = X @ inv_sqrt  # whitened feature space
+
+        #if np.isscalar(sigma) or sigma is None:
+        #    self.Z = X
+        #else:
+        #    from scipy.linalg import sqrtm
+        #    inv_sqrt = np.linalg.inv(sqrtm(sigma))
+        #    self.Z = X @ inv_sqrt  # whitened feature space
 
         self.random_state = random_state
         if random_state is None:
@@ -110,8 +111,8 @@ class AgglomerativeClustering:
     def _compute_distance_matrix(self, data=None):
         """Compute the initial distance matrix for all points."""
         if data is None:
-            #data = self.X
-            data = self.Z
+            data = self.X
+            #data = self.Z
         from scipy.spatial.distance import pdist, squareform
         distance_matrix = squareform(pdist(data, metric=self.affinity))
         for i in range(len(data)):
@@ -132,7 +133,7 @@ class AgglomerativeClustering:
                 for j in range(i + 1, len(clusters_sorted)):
                     cluster1, cluster2 = self.cluster_nodes[i], self.cluster_nodes[j]
                     idx = (i,j)
-                    D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.Z)
+                    D_ij = self._calculate_linkage_distance(cluster1,cluster2,self.X)
                     Ds.append(D_ij)
                     pair_idxs.append(idx)
             tau_t = self.tau * np.mean(Ds)
@@ -160,7 +161,8 @@ class AgglomerativeClustering:
     def _merge_clusters(self, i, j, distance_matrix, data=None):
         """Merge two clusters and update the distance matrix."""
         if data is None:
-            data = self.Z
+            #data = self.Z
+            data = self.X
 
         # Merge clusters
         merged_points = self.cluster_nodes[i].points + self.cluster_nodes[j].points
@@ -202,7 +204,8 @@ class AgglomerativeClustering:
         All other entries stay the same, only need to update the distance related to new node
         """
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
 
         new_size = distance_matrix.shape[0] + 1
         new_distance_matrix = np.zeros((new_size, new_size))
@@ -278,12 +281,19 @@ class AgglomerativeClustering:
         cluster_labels = cluster_labels - cluster_labels.min() + 1
 
         if manual_color:
-            manual_colors = ["#ff924c","#7ab13f",  "#9579d9"]
-            color_dict = {i + 1: manual_colors[i % len(manual_colors)] for i in range(K)}
+            target_points = [0, 10, 23]
+            target_colors = ["#ff924c", "#7ab13f", "#9579d9"]
+            cluster_color_map = {cluster_labels[i]: c for i, c in zip(target_points, target_colors)}
+
+            all_clusters = np.unique(cluster_labels)
+            unused_colors = [c for c in target_colors if c not in cluster_color_map.values()]
+            for c in all_clusters:
+                if c not in cluster_color_map:
+                    cluster_color_map[c] = unused_colors.pop(0) if unused_colors else "gray"
 
             def link_color_func(node_id):
                 if node_id < len(cluster_labels):
-                    return color_dict[cluster_labels[node_id]]
+                    return cluster_color_map[cluster_labels[node_id]]
                 else:
                     left_child = int(linkage_matrix[node_id - len(cluster_labels), 0])
                     right_child = int(linkage_matrix[node_id - len(cluster_labels), 1])
@@ -322,7 +332,8 @@ class AgglomerativeClustering:
     def _calculate_linkage_distance(self, new_node, cluster, data=None):
         """Calculate the distance between clusters based on the chosen linkage method."""
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
 
         if self.linkage == 'ward':
             return self._ward_distance(new_node, cluster, data)
@@ -343,7 +354,8 @@ class AgglomerativeClustering:
 
     def _ward_distance(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
 
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
@@ -364,7 +376,8 @@ class AgglomerativeClustering:
 
     def _single_linkage(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         # Single linkage: Minimum distance between clusters
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
@@ -374,7 +387,8 @@ class AgglomerativeClustering:
     def _complete_linkage(self, new_node, cluster, data=None):
         # Complete linkage: Maximum distance between clusters
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
         distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
@@ -382,7 +396,8 @@ class AgglomerativeClustering:
 
     def _average_linkage(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
         distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
@@ -390,7 +405,8 @@ class AgglomerativeClustering:
 
     def _minimax_linkage(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
         pairwise_distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
@@ -405,7 +421,8 @@ class AgglomerativeClustering:
     def _weighted_linkage(self, new_node, cluster, data=None):
         #TODO this is incorrect implementation
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         size_new = len(new_node.points)
         size_cluster = len(cluster.points)
 
@@ -430,7 +447,8 @@ class AgglomerativeClustering:
 
     def _centroid_linkage(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
         centroid_new = np.mean(data_new_node, axis=0)
@@ -439,7 +457,8 @@ class AgglomerativeClustering:
 
     def _median_linkage(self, new_node, cluster, data=None):
         if data is None:
-            data = self.Z
+            # data = self.Z
+            data = self.X
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
         median_new = np.median(data_new_node, axis=0)
@@ -917,7 +936,10 @@ class AgglomerativeClustering:
                 if np.isscalar(Sigma):
                     X_grid = nuisance + g * Sigma * norm_nu @ dir.reshape(1, -1)
                 else:
-                    X_grid = nuisance + g * norm_nu @ dir.reshape(1,-1)
+                    Sigma_sqrt = sqrtm(Sigma)
+                    Sigma_inv_sqrt = np.linalg.inv(Sigma_sqrt)
+
+                    X_grid = nuisance + g * norm_nu @ dir.reshape(1,-1) @ Sigma_sqrt
                 D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
                 Ds_grid.append(D_opt_grid)
 
@@ -974,31 +996,34 @@ class AgglomerativeClustering:
             return cdf
 
 
-        if np.isscalar(Sigma):
-            Z = self.X
-        else:
-            Z = self._apply_whitening(self.X, Sigma)
-        if self.tau!=0:
-            nu = self.compute_nu(node).reshape(-1,1)
-            norm_nu = nu / (np.linalg.norm(nu))
-            nuisance = (np.eye(self.n) - np.outer(norm_nu,norm_nu)) @ Z
-            stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
 
+        if self.tau!=0:
             if np.isscalar(Sigma):
-                dir = self.compute_dirT(Z.T @ norm_nu)
-                observed_target = np.linalg.norm(Z.T@norm_nu)/Sigma # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
+                nu = self.compute_nu(node).reshape(-1, 1)
+                norm_nu = nu / (np.linalg.norm(nu))
+                nuisance = (np.eye(self.n) - np.outer(norm_nu, norm_nu)) @ self.X
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                dir = self.compute_dirT(self.X.T @ norm_nu)
+                observed_target = np.linalg.norm(self.X.T@norm_nu)/Sigma # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
                 #print("Are they close?",
                 #      np.allclose(Z, nuisance + observed_target * Sigma * norm_nu @ dir.reshape(1, -1)))
             else:
-                dir = self.compute_dirT(Z.T @ norm_nu)
-                observed_target = np.linalg.norm(Z.T@nu)/np.linalg.norm(nu)
+                Sigma_sqrt = sqrtm(Sigma)
+                Sigma_inv_sqrt = np.linalg.inv(Sigma_sqrt)
+
+                nu = self.compute_nu(node).reshape(-1, 1)
+                norm_nu = nu / (np.linalg.norm(nu))
+                nuisance = (np.eye(self.n) - np.outer(norm_nu, norm_nu)) @ self.X
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                dir = self.compute_dirT(Sigma_inv_sqrt @ self.X.T @ norm_nu)
+                observed_target = np.linalg.norm(Sigma_inv_sqrt @ self.X.T@ nu)/np.linalg.norm(nu)
                 #print(np.allclose(X, self.X @ np.linalg.inv(sqrtm(Sigma))))
                 #print("‖dir‖ =", np.linalg.norm(dir))
                 #print("‖Z - nuisance‖ =", np.linalg.norm(X - nuisance))
                 #print("‖target term‖ =",
                 #      np.linalg.norm(observed_target / (np.linalg.norm(nu) ** 2) * nu @ dir.reshape(1, -1)))
                 #print("Are they close?",
-                #      np.allclose(Z, nuisance + observed_target * norm_nu @ dir.reshape(1, -1)))
+                #      np.allclose(self.X, nuisance + observed_target * norm_nu @ dir.reshape(1, -1) @ Sigma_sqrt))
                 #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
                 #print("Projection error (should be close to 0):", projection_error)
             #print("obs:",observed_target)

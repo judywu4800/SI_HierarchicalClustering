@@ -25,13 +25,33 @@ if __name__ == '__main__':
     output_dir = os.path.join(BASE_DIR, "results", "figures")
     os.makedirs(output_dir, exist_ok=True)
 
-    X, y = generate_data_barbers(n_each, delta, sigma, true_mean=False)
+    X, y = generate_data_barbers(n_each, delta, sigma, true_mean=False,rng = np.random.RandomState(0))
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    manual_colors =  ["#ff924c",  "#9579d9", "#7ab13f"]
+    '''
     unique_labels = np.unique(y)
     color_dict = {lab: manual_colors[i % len(manual_colors)] for i, lab in enumerate(unique_labels)}
+    point_colors = [color_dict[label] for label in y]
+    '''
+
+    manual_colors = ["#ff924c", "#9579d9", "#7ab13f"]
+    cluster_0 = y[0]
+    cluster_10 = y[10]
+    cluster_23 = y[23]
+
+    color_dict = {
+        cluster_0: "#ff924c",
+        cluster_10: "#7ab13f",
+        cluster_23: "#9579d9"
+    }
+
+    unique_labels = np.unique(y)
+    remaining_clusters = [lab for lab in unique_labels if lab not in color_dict]
+    remaining_colors = [c for c in manual_colors if c not in color_dict.values()]
+    for lab, col in zip(remaining_clusters, remaining_colors):
+        color_dict[lab] = col
+
     point_colors = [color_dict[label] for label in y]
 
     axes[0].scatter(X[:, 0], X[:, 1], s=50, c=point_colors)
@@ -57,15 +77,22 @@ if __name__ == '__main__':
     model = cluster.AgglomerativeClustering(n_clusters=3, linkage='complete')
     labels_sklearn = model.fit_predict(X)
     Z = linkage(X, method='complete')
-    manual_colors = ["#9579d9","#7ab13f","#ff924c"]
-    unique_labels = np.unique(labels_sklearn)
-    color_dict = {lab: manual_colors[i % len(manual_colors)] for i, lab in enumerate(unique_labels)}
+
+    target_points = [0, 10, 23]
+    target_colors = ["#ff924c", "#7ab13f", "#9579d9"]
+    cluster_color_map = {labels_sklearn[i]: c for i, c in zip(target_points, target_colors)}
+
+    all_clusters = np.unique(labels_sklearn)
+    unused_colors = [c for c in target_colors if c not in cluster_color_map.values()]
+    for c in all_clusters:
+        if c not in cluster_color_map:
+            cluster_color_map[c] = unused_colors.pop(0) if unused_colors else "gray"
 
 
     def link_color_func(node_id):
         n_samples = len(labels_sklearn)
         if node_id < n_samples:
-            return color_dict[labels_sklearn[node_id]]
+            return cluster_color_map[labels_sklearn[node_id]]
         else:
             left = int(Z[node_id - n_samples, 0])
             right = int(Z[node_id - n_samples, 1])
@@ -88,10 +115,11 @@ if __name__ == '__main__':
     axes[1].tick_params(axis='y', labelsize=10)
     axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=0)
 
-    model001 = AgglomerativeClustering(X, tau=0.05, n_clusters=3, linkage="complete", random_state=0)
-    model001.fit(dendrogram=True)
-
-    model001.plot_dendrogram(ax=axes[2], show=False, save_fig=False, outdir=output_dir, manual_color=True)
+    model_r = AgglomerativeClustering(X, tau=0.05, n_clusters=3, linkage="complete", random_state=0)
+    model_r.fit(dendrogram=True)
+    #print(model_r.K_clusters)
+    #print(model_r.existing_clusters_log)
+    model_r.plot_dendrogram(ax=axes[2], show=False, save_fig=False, outdir=output_dir, manual_color=True)
     axes[2].set_title("Randomized (tau=0.05)", fontsize=14, fontweight='bold')
 
     plt.tight_layout(pad=0.2, w_pad=0.3)

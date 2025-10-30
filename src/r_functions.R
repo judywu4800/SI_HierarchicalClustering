@@ -74,16 +74,19 @@ get_pval <- function(X,K, k1,k2, linkage, method = "euclidean"){
     return(pval)
 }
 
-get_gao_pval <- function(X,K, linkage, method = "euclidean"){
+get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
+    if (!missing(seed) && !is.null(seed)) {
+    set.seed(seed)
+  }
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl)$pval
                }
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
-
     return(pval)
 }
 
-get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean"){
+get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NULL){
+    if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     hcl_at_K <- cutree(hcl, K)
     sigma_hat <- fun_ss_hat_clustered(X,hcl_at_K, K)
@@ -488,7 +491,8 @@ get_barber_pval_pair <- function(X, K, k1, k2, linkage = "complete"){
   return(pval)
 }
 
-get_barber_pval <- function(X, K, linkage = "complete"){
+get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
+  if (!missing(seed) && !is.null(seed)) set.seed(seed)
   hcl <- hclust(dist(X)^2, method = linkage)
   hcl_at_K <- cutree(hcl, K)
   pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]

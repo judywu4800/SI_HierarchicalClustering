@@ -61,7 +61,9 @@ def fun_gen_X(n, p, ss, delta=0):
 
     return X
 
-def generate_null_data(n, p, mu=None, sigma=1.0):
+def generate_null_data(n, p, mu=None, sigma=1.0, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
     if mu is None:
         mu = np.zeros(p)
     mu = np.asarray(mu)
@@ -77,7 +79,7 @@ def generate_null_data(n, p, mu=None, sigma=1.0):
     if mu.shape[0] != p:
         raise ValueError(f"Mean vector length {mu.shape[0]} does not match p={p}.")
 
-    X = np.random.multivariate_normal(mean=mu, cov=Sigma, size=n)
+    X = rng.multivariate_normal(mean=mu, cov=Sigma, size=n)
     return X
 
 def compute_nu(node,n):
@@ -334,14 +336,15 @@ def check_p_value_uniformity_multi_tau_parallel(n, p, sigma, K, tau_list, layer,
 
     return all_p_values, naive_p_values
 
-def run_trial_random_pair(n, p, sigma, K, tau_list, linkage):
-    X = generate_null_data(n, p, np.zeros(p), sigma)
+def run_trial_random_pair(n, p, sigma, K, tau_list, linkage, random_state):
+    rng = np.random.default_rng(random_state)
+    X = generate_null_data(n, p, np.zeros(p), sigma, rng=rng)
     trial_results = {}
     naive_val = naive_p_value_random_pair(X, K, linkage)
     trial_results['naive'] = naive_val
 
     for tau in tau_list:
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage, random_state=random_state)
         model.fit()
         c1 = model.K_clusters[0]
         c2 = model.K_clusters[1]
@@ -352,10 +355,16 @@ def run_trial_random_pair(n, p, sigma, K, tau_list, linkage):
     return trial_results
 
 def check_p_value_uniformity_multi_tau_random_pair_parallel(n, p, sigma, K, tau_list,
-                                                linkage="complete", num_trials=1000, n_jobs=-1):
+                                                linkage="complete", num_trials=1000, n_jobs=-1, seed = 0):
+    main_rng = np.random.default_rng(seed)
+    rng_list = main_rng.spawn(num_trials)
+
     results = Parallel(n_jobs=n_jobs)(
-        delayed(run_trial_random_pair)(n, p, sigma, K, tau_list, linkage)
-        for _ in range(num_trials)
+        delayed(run_trial_random_pair)(
+            n, p, sigma, K, tau_list, linkage,
+            random_state=rng_list[i].integers(0, 2 ** 32 - 1)
+        )
+        for i in range(num_trials)
     )
 
     all_p_values = {tau: [] for tau in tau_list}
