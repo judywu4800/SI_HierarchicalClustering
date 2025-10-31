@@ -16,7 +16,8 @@ import os
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
-ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+#ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
 def compute_pval_gao(X, K, linkage, method = "euclidean", seed = None):
     #ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
     #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')

@@ -79,7 +79,8 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
     set.seed(seed)
   }
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
-    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl)$pval
+    sigma_hat <- fun_ss_hat_all(X)
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl,sig = sqrt(sigma_hat))$pval
                }
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
     return(pval)
