@@ -16,7 +16,7 @@ if __name__ == "__main__":
     #tau_list = [0.01]
     layer = -1
     linkage = "complete"
-    num_trials = 500
+    num_trials = 1000
     n_jobs = -1
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))

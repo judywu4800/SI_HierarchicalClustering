@@ -113,7 +113,7 @@ if __name__ == "__main__":
     sigma = 1.0
     K = 3
     linkage = "complete"
-    num_trials = 500
+    num_trials = 1000
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw")
