@@ -1,3 +1,4 @@
+import random
 import sys, os
 sys.path.append(os.path.abspath('../../src'))
 import logging
@@ -18,8 +19,8 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import default_converter
 from rpy2.robjects import numpy2ri
 
-R_SCRIPT = "/home/judydw/RAC_invariant/r_functions.R"
-#R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/r_functions.R"
+R_SCRIPT = "/home/judydw/SI_HierarchicalClustering/src/r_functions.R"
+#R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R"
 _GAO_FUN = None
 
 def init_worker_gao(r_script_path):
@@ -33,19 +34,19 @@ def one_repeat_task_gao(args):
      linkage, metric, seed, label) = args
     pvals = []
     mu = np.zeros(p)
-
+    rng = np.random.default_rng(seed)
     while len(pvals) < num_trials:
-        X = generate_null_data(n, p, mu, sigma)
+        X = generate_null_data(n, p, mu, sigma, rng=rng)
         with localconverter(default_converter + numpy2ri.converter):
             X_r = ro.conversion.py2rpy(X)
         try:
-            pv = float(_GAO_FUN(X_r, K, linkage)[0])
+            pv = float(_GAO_FUN(X_r, K, linkage, seed=int(seed))[0])
         except Exception:
             continue
 
         if np.isfinite(pv) and (not np.isnan(pv)):
             pvals.append(pv)
-
+    #print(pvals)
     type1 = float(np.mean(np.array(pvals) < alpha))
     return {"Method": "Gao", "Label": (label or "Gao (sigma_all)"), "Type I Error": type1}
 
@@ -73,6 +74,8 @@ def check_type1_pool_gao(n, p, sigma,
     return df
 
 if __name__ == "__main__":
+    random.seed(0)
+    np.random.seed(0)
     n, p, sigma = 30, 10, 1.0
     K = 3
     alpha = 0.05
@@ -81,9 +84,8 @@ if __name__ == "__main__":
     num_repeats = 100
     n_jobs = 32
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results", f"results_gao_type1_{timestamp}")
+    output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
 
     df_results = check_type1_pool_gao(
@@ -95,4 +97,4 @@ if __name__ == "__main__":
         r_script=R_SCRIPT, label="Gao (sigma_all)"
     )
 
-    df_results.to_csv(os.path.join(output_dir, "type1_gao_by_repeat.csv"), index=False)
+    df_results.to_csv(os.path.join(output_dir, "type1_gao.csv"), index=False)

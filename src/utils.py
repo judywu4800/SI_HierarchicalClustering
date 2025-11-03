@@ -231,71 +231,7 @@ def check_p_value_uniformity(n, p, sigma, K, tau, layer, linkage="complete", num
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.show()
 
-def check_p_value_uniformity_multi_tau(n, p, sigma, K, tau_list, layer, linkage="complete", num_trials=1000):
-    all_p_values = {tau: [] for tau in tau_list}
-    naive_p_values = []
 
-    mu = np.zeros(p)
-
-    for trial in range(num_trials):
-        X = generate_null_data(n, p, mu, sigma)
-        naive_val = naive_p_value(X, K, layer, linkage)
-        naive_p_values.append(naive_val)
-
-        for tau in tau_list:
-            model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage)
-            model.fit()
-
-            winning_nodes = list(model.existing_clusters_log.keys())
-            key = winning_nodes[layer]
-            node = key[0].parent
-
-            p_val, _, _ = model.merge_inference_F(node, grid_width=5, ncoarse=20, ngrid=2000)
-            all_p_values[tau].append(p_val)
-
-    for tau in tau_list:
-        all_p_values[tau] = np.array(all_p_values[tau])
-    naive_p_values = np.array(naive_p_values)
-
-    plt.figure(figsize=(10, 6))
-    for tau in tau_list:
-        plt.hist(all_p_values[tau], bins=20, density=True, alpha=0.4, label=f"Sel. (tau={tau})", edgecolor='black')
-    plt.hist(naive_p_values, bins=20, density=True, alpha=0.4, label=f"Naive", edgecolor='gray', linestyle='dashed')
-    plt.axhline(1, color='red', linestyle='dashed', linewidth=2, label="Uniform(0,1)")
-    plt.xlabel("P-value")
-    plt.ylabel("Density")
-    plt.title("Histogram of P-values Under the Null")
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.show()
-
-    plt.figure(figsize=(10, 6))
-    for tau in tau_list:
-        sns.ecdfplot(all_p_values[tau], label=f"Sel. (tau={tau})", linestyle="-")
-    sns.ecdfplot(naive_p_values, label="Naive", linestyle="--")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="red", label="Expected (Uniform)")
-    plt.xlabel("P-value")
-    plt.ylabel("ECDF")
-    plt.title("ECDF of P-values")
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.show()
-
-
-    plt.figure(figsize=(10, 6))
-    theoretical_quantiles = np.linspace(0, 1, num_trials)
-    for tau in tau_list:
-        sorted_sel = np.sort(all_p_values[tau])
-        plt.plot(theoretical_quantiles, sorted_sel, marker='o', linestyle='', label=f"Sel. (tau={tau})")
-    sorted_naive = np.sort(naive_p_values)
-    plt.plot(theoretical_quantiles, sorted_naive, marker='x', linestyle='', label="Naive")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="red", label="Expected (Uniform)")
-    plt.xlabel("Theoretical Uniform Quantiles")
-    plt.ylabel("Empirical P-values")
-    plt.title("Q-Q Plot: P-values vs. Uniform(0,1)")
-    plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.show()
 
 def run_trial(n, p, sigma, K, tau_list, layer, linkage):
     X = generate_null_data(n, p, np.zeros(p), sigma)
@@ -355,7 +291,7 @@ def run_trial_random_pair(n, p, sigma, K, tau_list, linkage, random_state):
     return trial_results
 
 def check_p_value_uniformity_multi_tau_random_pair_parallel(n, p, sigma, K, tau_list,
-                                                linkage="complete", num_trials=1000, n_jobs=-1, seed = 0):
+                                                linkage="complete", num_trials=1000, n_jobs=-1, seed = 42):
     main_rng = np.random.default_rng(seed)
     rng_list = main_rng.spawn(num_trials)
 
@@ -424,13 +360,13 @@ def check_type1_multi_tau_parallel(n, p, sigma, tau_list, K, layer, alpha=0.05, 
     plt.show()
     return df_results
 
-def single_repeat_random_pair(tau, label, n, p, sigma, K, alpha, num_trials):
+def single_repeat_random_pair(tau, label, n, p, sigma, K, alpha, num_trials, random_state):
+    rng = np.random.default_rng(random_state)
     mu = np.zeros(p)
     p_values = []
-
     while len(p_values)<num_trials:
-        X = generate_null_data(n, p, mu, sigma)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="complete")
+        X = generate_null_data(n, p, mu, sigma, rng=rng)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="complete", random_state=rng.integers(1e9))
         model.fit()
 
         c1 = model.K_clusters[0]
@@ -445,12 +381,14 @@ def single_repeat_random_pair(tau, label, n, p, sigma, K, alpha, num_trials):
 
 
 def check_type1_multi_tau_random_pair_parallel(n, p, sigma, tau_list, K, alpha=0.05, num_trials=200, num_repeats=10,
-                                   n_jobs=-1):
+                                   n_jobs=-1, base_seed=0):
     tasks = []
+    rng = np.random.default_rng(base_seed)
     for tau in tau_list:
         label = "Naive" if tau == 0 else "Randomized"
-        for _ in range(num_repeats):
-            tasks.append((tau, label, n, p, sigma, K, alpha, num_trials))
+        for r in range(num_repeats):
+            seed = rng.integers(1e9)
+            tasks.append((tau, label, n, p, sigma, K, alpha, num_trials, seed))
 
     results = Parallel(n_jobs=n_jobs)(
         delayed(single_repeat_random_pair)(*task) for task in tasks

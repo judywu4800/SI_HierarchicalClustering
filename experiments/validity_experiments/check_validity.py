@@ -12,14 +12,13 @@ if __name__ == "__main__":
     p = 10
     sigma = 1.0
     K = 3
-    tau_list = [0.01,0.05,0.1,0.5,1,5]
+    tau_list = [0.025,0.05,0.1,0.5,1,5]
     #tau_list = [0.01]
     layer = -1
     linkage = "complete"
     num_trials = 500
     n_jobs = -1
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
