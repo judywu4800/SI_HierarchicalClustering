@@ -98,7 +98,8 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
     return(pval)
 }
 
-get_gao_pval_es <- function(X, true_means,K, linkage){
+get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
+    if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     k1 <- 1
     k2 <- 2
@@ -119,7 +120,8 @@ get_gao_pval_es <- function(X, true_means,K, linkage){
 
     return(c(pval,effect))
 }
-get_gao_pval_es_clustered <- function(X, true_means,K, linkage){
+get_gao_pval_es_clustered <- function(X, true_means,K, linkage, seed=NULL){
+    if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     k1 <- 1
     k2 <- 2
@@ -500,7 +502,8 @@ get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
   return(pval)
 }
 
-get_barber_pval_es <- function(X,true_means, K, linkage = "complete"){
+get_barber_pval_es <- function(X,true_means, K, linkage = "complete", seed=NULL){
+  if (!missing(seed) && !is.null(seed)) set.seed(seed)
   hcl <- hclust(dist(X)^2, method = linkage)
   k1 <- 1
   k2 <- 2

@@ -20,36 +20,45 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
 
 def init_worker():
-    ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
-    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/r_functions.R")')
-def compute_pval_gao_es(X,true_means, K=3, linkage = "complete"):
-    ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
-    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/r_functions.R")')
+    ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+def compute_pval_gao_es(X,true_means, K=3, linkage = "complete", seed=None):
+    ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
     with localconverter(default_converter + numpy2ri.converter):
         ro.globalenv['X'] = ro.conversion.py2rpy(X)
         ro.globalenv['true_mean_py'] = ro.conversion.py2rpy(true_means)
     ro.globalenv['K_py'] = K
     ro.globalenv['link_py'] = linkage
-    result = ro.r("get_gao_pval_es(X,true_mean_py, K_py, link_py)")
+    ro.globalenv['seed'] = int(seed)
+    result = ro.r("get_gao_pval_es(X,true_mean_py, K_py, link_py, seed)")
     return result
-def compute_power_Gao(sigma, delta, alpha, num_trials=10000):
+def compute_power_Gao(sigma, delta, alpha, num_trials=10000, rng= None):
+    if rng is None:
+        rng = np.random.default_rng()
+
     p_values = []
     effect_sizes = []
     for _ in range(num_trials):
-        X, true_label, true_means = generate_data_barbers(10, delta, sigma, true_mean = True)
-        pval, effect = np.array(compute_pval_gao_es(X,true_means, K=3, linkage="complete"))
+        trial_rng = np.random.default_rng(rng.integers(1e9))
+        trial_seed = int(trial_rng.integers(1e9))
+        X, true_label, true_means = generate_data_barbers(10, delta, sigma, true_mean = True, rng=trial_rng)
+        pval, effect = np.array(compute_pval_gao_es(X,true_means, K=3, linkage="complete", seed = trial_seed))
 
         p_values.append(pval)
         effect_sizes.append(effect)
-
+    #print(p_values)
     rejection = (np.array(p_values) < alpha).astype(int)
     return rejection, effect_sizes
 
-def run_single_delta_gao(delta):
-    return compute_power_Gao(1, delta, 0.05, 2000)
+def run_single_delta_gao(delta, base_seed=0):
+    rng = np.random.default_rng(base_seed + int(delta * 1000))
+    return compute_power_Gao(1, delta, 0.05, 2000,rng=rng)
 
 if __name__ == "__main__":
-    random.seed(1)
+    random.seed(0)
+    np.random.seed(0)
+    base_seed = 0
     n = 30
     p = 10
     sigma = 1
@@ -78,12 +87,11 @@ if __name__ == "__main__":
         "method": ["Gao"] * len(effect_all)
     })
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results", f"gao_es_results_{timestamp}")
+    output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
 
-    csv_path = os.path.join(output_dir, "rejection_and_effect_gao.csv")
+    csv_path = os.path.join(output_dir, "rejection_es_gao.csv")
     df_gao.to_csv(csv_path, index=False)
 
 

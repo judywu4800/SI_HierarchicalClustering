@@ -737,7 +737,9 @@ def check_power_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta, alpha=
 
     return power_results, recovery_results, effect_size_results
 
-def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
+def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
     p_values = []
     effect_sizes = []
     recovery = 0
@@ -745,8 +747,8 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
 
     for _ in range(num_trials):
         trial_count += 1
-        X, true_labels, true_means = generate_data_barbers(10,delta,sigma, true_mean=True)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=3, linkage="complete")
+        X, true_labels, true_means = generate_data_barbers(10,delta,sigma, true_mean=True, rng=rng)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=3, linkage="complete", random_state=rng.integers(1e9))
         model.fit()
 
         #idx1, idx2 = np.random.choice(np.arange(3), size=2, replace=False)
@@ -783,16 +785,21 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500):
 
     return reject, recovery_prob, effect_sizes
 
-def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, num_trials=500):
-    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
+def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, num_trials=500, seed=None):
+    if seed is not None:
+        rng = np.random.default_rng(seed)
+    else:
+        rng = np.random.default_rng()
+    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials, rng=rng)
     return delta, tau, reject, effect_sizes,recovery_prob
 
 def check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.05,
-                                 num_trials=500, n_jobs=-1):
+                                 num_trials=500, n_jobs=-1, base_seed=0):
     results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, num_trials)
-        for tau in tau_list
-        for delta in deltas
+        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, num_trials,
+                                                        seed=base_seed + i * 100 + j)
+        for i, tau in enumerate(tau_list)
+        for j, delta in enumerate(deltas)
     )
     all_dfs = []
     for rows in results:
@@ -878,70 +885,4 @@ def check_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.
     final_df = pd.concat(all_dfs, ignore_index=True)
 
     return(final_df)
-
-def single_delta_reject_prop_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, max_attempts=50000):
-    #p_values = []
-    proportion = []
-    recovery = 0
-    trial_count = 0
-
-    for _ in range(num_trials):
-        trial_count += 1
-        X, true_labels = generate_data_barbers(10,delta,sigma)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=3, linkage="complete")
-        model.fit()
-
-        #idx1, idx2 = np.random.choice(np.arange(3), size=2, replace=False)
-        pairs = combinations(model.K_clusters,2)
-        #check whether under alternative
-        non_alternative_pairs = []
-        for c1, c2 in pairs:
-            c1_points = c1.points
-            c2_points = c2.points
-
-            #c1_true_clusters = set(true_labels[c1_points])
-            #c2_true_clusters = set(true_labels[c2_points])
-            idx = np.concatenate([c1_points, c2_points])
-            unique_labels = np.unique(true_labels[idx])
-            non_alternative = len(unique_labels)== 1 #all points belong to one true cluster
-            non_alternative_pairs.append(non_alternative)
-
-        if sum(non_alternative_pairs) == 0: #all pairs under alternative
-            recovery += 1
-            pvals = []
-            pairs = combinations(model.K_clusters, 2)
-            for c1, c2 in pairs:
-                p_val, _, _ = model.merge_inference_F_random_pair(c1,c2, grid_width=70, ncoarse=20, ngrid=1000)
-                pvals.append(p_val)
-            proportion.append(np.mean(np.array(pvals) < alpha))
-
-    #power = np.mean(np.array(p_values) < alpha)
-    mean_prop = np.mean(np.array(proportion))
-    recovery_prob = recovery / num_trials
-    #success = len(p_values) == num_trials
-    success = 0
-    return mean_prop, recovery_prob, success
-
-def compute_reject_prop_for_tau_delta_random_pair(tau, delta, n, p, sigma, alpha, num_trials):
-    mean_prop, recovery, success = single_delta_reject_prop_random_pair(delta, n, p, sigma, tau, alpha, num_trials)
-    return tau, delta, mean_prop, recovery, success
-def check_reject_prop_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta_list, alpha=0.05,
-                                 num_trials=500, n_jobs=-1):
-    results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_reject_prop_for_tau_delta_random_pair)(tau, delta, n, p, sigma, alpha, num_trials)
-        for tau in tau_list
-        for delta in delta_list
-    )
-
-    # Organize results into dictionary
-    prop_results = {tau: {} for tau in tau_list}
-    recovery_results = {tau: {} for tau in tau_list}
-    success_results = {tau: {} for tau in tau_list}
-
-    for tau, delta, power, recovery, success in results:
-        prop_results[tau][delta] = power
-        recovery_results[tau][delta] = recovery
-        success_results[tau][delta] = success
-
-    return prop_results, recovery_results, success_results
 
