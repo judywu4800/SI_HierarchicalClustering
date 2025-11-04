@@ -61,7 +61,7 @@ def check_type1_pool_barber(n, p, sigma,
                       int(child_seeds[i].generate_state(1)[0]), label))
     ctx = get_context('spawn')
     with ctx.Pool(processes=n_jobs, initializer=init_worker_barber, initargs=(r_script,)) as pool:
-        results = list(pool.imap_unordered(one_repeat_task_barber, tasks, chunksize=10))
+        results = list(pool.imap_unordered(one_repeat_task_barber, tasks, chunksize=50))
     df = pd.DataFrame(results)
     return df
 
@@ -71,8 +71,8 @@ if __name__ == "__main__":
     n, p, sigma = 30, 10, 1.0
     K = 3
     alpha = 0.05
-    num_trials  = 200
-    num_repeats = 100
+    num_trials  = 20
+    num_repeats = 10
     n_jobs = 32
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))

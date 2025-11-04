@@ -52,7 +52,7 @@ def compute_power_barber(sigma, delta, alpha, num_trials=10000, rng=None):
 
 def run_single_delta_barber(delta,base_seed = 0):
     rng = np.random.default_rng(base_seed + int(delta * 1000))
-    return compute_power_barber(1, delta, 0.05, 2, rng=rng)
+    return compute_power_barber(1, delta, 0.05, 2000, rng=rng)
 
 if __name__ == "__main__":
     random.seed(0)

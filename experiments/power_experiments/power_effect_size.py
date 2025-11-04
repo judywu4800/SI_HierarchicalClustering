@@ -2,8 +2,6 @@ import sys, os
 sys.path.append(os.path.abspath('../../src'))
 import numpy as np
 from utils import *
-from datetime import datetime
-from pygam import LogisticGAM, s
 import random
 
 

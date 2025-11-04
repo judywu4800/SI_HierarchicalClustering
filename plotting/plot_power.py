@@ -4,17 +4,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from scipy.stats import norm
 
 
 if __name__ == "__main__":
     output_dir = os.path.join("../results/figures")
 
-    dfg = pd.read_csv("../results/raw/rejection_and_effect_gao.csv")
-    dfgc = pd.read_csv("../results/raw/rejection_and_effect_gao_clustered.csv")
-    dfb = pd.read_csv("../results/raw/rejection_and_effect_barber.csv")
-    dfr = pd.read_csv("../results/raw/reject_es-6.csv")
+    #dfg = pd.read_csv("../results/raw/rejection_and_effect_gao.csv")
+    #dfgc = pd.read_csv("../results/raw/rejection_and_effect_gao_clustered.csv")
+    #dfb = pd.read_csv("../results/raw/rejection_and_effect_barber.csv")
+    #dfr = pd.read_csv("../results/raw/reject_es-6.csv")
+    dfg = pd.read_csv("../results/raw/rejection_es_gao.csv")
+    dfgc = pd.read_csv("../results/raw/rejection_es_gao_clustered.csv")
+    dfb = pd.read_csv("../results/raw/rejection_es_barber.csv")
+    dfr = pd.read_csv("../results/raw/reject_effect_size.csv")
 
-    from scipy.stats import norm
 
 
     def binned_empirical_power_with_ci_normal(df, xcol="effect_size", ycol="reject",
@@ -52,51 +56,71 @@ if __name__ == "__main__":
         return centers[mask], prop[mask], lower[mask], upper[mask], counts[mask]
 
 
+    colors = {
+        "sel": ["#729869",  "#587450", "#6BBBAF", "#3CA1A4"],#["#C4EAA7", "#A9D595", "#8DBE7E", "#729869", "#587450", "#3F5237", "#252D1D"],
+        "gao": "#F7B718",
+        "barber": "#B069DB"
+    }
+
     plt.figure(figsize=(10, 6))
 
     n_bins = 10
     alpha = 0.05
     x_min = max(dfg["effect_size"].min(), dfr["effect_size"].min(),
-                dfb["effect_size"].min()) - 0.1
+                dfb["effect_size"].min())
     x_max = min(dfg["effect_size"].max(), dfr["effect_size"].max(),
-                dfb["effect_size"].max()) + 0.1
+                dfb["effect_size"].max())
 
-    for tau, g in dfr.groupby("tau"):
-        if tau in [0, 0.5, 0.75, 1.0]:
+    for i, (tau, g) in enumerate(dfr.groupby("tau")):
+        if tau in [0,0.01, 0.5, 0.75, 1.0]:
             continue
         bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
             g, xcol="effect_size", ycol="reject",
-            x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=1,
+            x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
             alpha=alpha
         )
-        plt.errorbar(bx, by, yerr=[by - lower, upper - by],
-                     fmt='o-', capsize=4, label=f"tau={tau}")
+        plt.errorbar(
+            bx, by, yerr=[by - lower, upper - by],
+            fmt='o-', capsize=4,
+            color=colors["sel"][i % len(colors["sel"])],
+            label=f"RAC({tau})"
+        )
 
     bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
         dfg, xcol="effect_size", ycol="reject",
-        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=1,
+        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
         alpha=alpha
     )
     if len(bx) > 0:
-        plt.errorbar(bx, by, yerr=[by - lower, upper - by],
-                     fmt='s--', capsize=4, label="Gao et al. (sigma_all)")
+        plt.errorbar(
+            bx, by, yerr=[by - lower, upper - by],
+            fmt='s--', capsize=4,
+            color=colors["gao"],
+            label="Gao et al. (sigma_all)"
+        )
 
     bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
         dfb, xcol="effect_size", ycol="reject",
-        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=1,
+        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
         alpha=alpha
     )
     if len(bx) > 0:
-        plt.errorbar(bx, by, yerr=[by - lower, upper - by],
-                     fmt='d--', capsize=4, label="Yun & Barber")
+        plt.errorbar(
+            bx, by, yerr=[by - lower, upper - by],
+            fmt='d--', capsize=4,
+            color=colors["barber"],
+            label="Yun & Barber"
+        )
 
-    # --- Plot settings ---
-    plt.xlabel("Delta (effect size)")
-    plt.ylabel("Power (Pr[Reject=1 | Δ])")
-    plt.title("Power vs Delta (binned with 95% normal CIs)")
+    plt.xlabel("Effect size")
+    plt.ylabel("Power (Pr[Reject=1 |Effect Size])")
+    plt.title("Power vs Effect Size")
     plt.legend(title="Method / Tau")
     plt.grid(True, linestyle="--", alpha=0.4)
     plt.xlim(x_min, x_max)
     plt.ylim(-0.01, 1)
     plt.tight_layout()
-    plt.show()
+
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "power_vs_effectsize.png"))
+    plt.close()

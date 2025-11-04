@@ -22,26 +22,27 @@ if __name__ == "__main__":
         y = np.arange(1, len(x) + 1) / len(x)
         plt.step(x, y, where='post', label=label, color=color)
 
-    #rand_color = ["#72B43A", "#A9D595", "#8DBE7E", "#729869", "#72B43A", "#416522",]
+    #rand_colors = ["#72B43A", "#A9D595", "#8DBE7E", "#729869", "#72B43A", "#416522",]
     cmap = plt.cm.GnBu
     rand_colors = [cmap(i) for i in np.linspace(0.2, 0.9, len(tau_cols))]
     color_map = {
         "Naive": "#e41a1c",  # strong red
         "Gao et al(sigma_clustered)": "#FF758F",  # lighter red
-        "Gao et al(sigma_all)": "#9A784F",
+        "Gao et al(sigma_all)": "#F7B718",
         "Yun and Barber": "#B069DB",
-        "Expected (Uniform)": "#666666",  # black dashed
+        "Expected (Uniform)": "#FF0000",  # black dashed
     }
 
     plt.figure(figsize=(10, 6))
     for i, col in enumerate(tau_cols):
-        label = f"Sel. ({col})"
+        tau_val = col.split('=')[1]
+        label = f"RAC({tau_val})"
         color = rand_colors[i]
         plot_ecdf(df[col].dropna().to_numpy(), label, color=color)
 
     plot_ecdf(naive, "Naive", color=color_map["Naive"])
-    plot_ecdf(gao, "Gao et al(sigma_all)", color=color_map["Gao et al(sigma_all)"])
-    plot_ecdf(gao_c, "Gao et al(sigma_clustered)", color=color_map["Gao et al(sigma_clustered)"])
+    plot_ecdf(gao, "Gao_all", color=color_map["Gao et al(sigma_all)"])
+    plot_ecdf(gao_c, "Gao_clustered", color=color_map["Gao et al(sigma_clustered)"])
     plot_ecdf(barber, "Yun and Barber", color=color_map["Yun and Barber"])
     plt.plot([0, 1], [0, 1], linestyle="--", label="Expected (Uniform)", color=color_map["Expected (Uniform)"])
 
@@ -74,6 +75,6 @@ if __name__ == "__main__":
     plt.ylabel("Empirical P-values")
     plt.title("Q-Q Plot: P-values vs. Uniform(0,1)")
     plt.legend()
-    plt.grid(True, linestyle="--", alpha=0.5)
+    #plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "qq_plot_combined.png"))

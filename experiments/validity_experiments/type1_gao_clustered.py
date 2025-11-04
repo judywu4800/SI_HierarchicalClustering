@@ -67,7 +67,7 @@ def check_type1_pool_gao(n, p, sigma,
 
     ctx = get_context('spawn')
     with ctx.Pool(processes=n_jobs, initializer=init_worker_gao, initargs=(r_script,)) as pool:
-        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=10))
+        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=50))
 
     df = pd.DataFrame(results)
     return df
