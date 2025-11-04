@@ -42,9 +42,9 @@ if __name__ == "__main__":
 
     green_shades = ["#C4EAA7", "#A9D595", "#8DBE7E", "#729869", "#587450", "#3F5237", "#252D1D"]
     palette = {
-        '0': "#e41a1c",
+        '0': "#FF758F",
         'Gao_all': "#F7B718",
-        'Gao_clustered': "#FF758F",
+        'Gao_clustered':  "#8e1b01",
         'Barber': "#B069DB"
     }
 

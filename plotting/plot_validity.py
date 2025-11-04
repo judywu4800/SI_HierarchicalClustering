@@ -26,8 +26,8 @@ if __name__ == "__main__":
     cmap = plt.cm.GnBu
     rand_colors = [cmap(i) for i in np.linspace(0.2, 0.9, len(tau_cols))]
     color_map = {
-        "Naive": "#e41a1c",  # strong red
-        "Gao et al(sigma_clustered)": "#FF758F",  # lighter red
+        "Naive": "#FF758F",
+        "Gao et al(sigma_clustered)": "#8e1b01",
         "Gao et al(sigma_all)": "#F7B718",
         "Yun and Barber": "#B069DB",
         "Expected (Uniform)": "#FF0000",  # black dashed

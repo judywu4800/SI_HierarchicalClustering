@@ -39,7 +39,7 @@ def one_repeat_task_gao(args):
         with localconverter(default_converter + numpy2ri.converter):
             X_r = ro.conversion.py2rpy(X)
         try:
-            pv = float(_GAO_FUN(X_r, K, linkage, seed=int(seed))[0])
+            pv = float(_GAO_FUN(X_r, K, linkage, seed=int(rng.integers(1e9)))[0])
         except Exception:
             continue
 
@@ -67,7 +67,7 @@ def check_type1_pool_gao(n, p, sigma,
 
     ctx = get_context('spawn')
     with ctx.Pool(processes=n_jobs, initializer=init_worker_gao, initargs=(r_script,)) as pool:
-        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=50))
+        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=20))
 
     df = pd.DataFrame(results)
     return df

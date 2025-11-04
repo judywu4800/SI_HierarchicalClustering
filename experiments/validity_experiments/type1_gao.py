@@ -19,8 +19,8 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import default_converter
 from rpy2.robjects import numpy2ri
 
-R_SCRIPT = "/home/judydw/SI_HierarchicalClustering/src/r_functions.R"
-#R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R"
+#R_SCRIPT = "/home/judydw/SI_HierarchicalClustering/src/r_functions.R"
+R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R"
 _GAO_FUN = None
 
 def init_worker_gao(r_script_path):
@@ -40,7 +40,7 @@ def one_repeat_task_gao(args):
         with localconverter(default_converter + numpy2ri.converter):
             X_r = ro.conversion.py2rpy(X)
         try:
-            pv = float(_GAO_FUN(X_r, K, linkage, seed=int(seed))[0])
+            pv = float(_GAO_FUN(X_r, K, linkage, seed=int(rng.integers(1e9)))[0])
         except Exception:
             continue
 
@@ -68,7 +68,7 @@ def check_type1_pool_gao(n, p, sigma,
 
     ctx = get_context('spawn')
     with ctx.Pool(processes=n_jobs, initializer=init_worker_gao, initargs=(r_script,)) as pool:
-        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=50))
+        results = list(pool.imap_unordered(one_repeat_task_gao, tasks, chunksize=20))
 
     df = pd.DataFrame(results)
     return df
@@ -80,8 +80,8 @@ if __name__ == "__main__":
     K = 3
     alpha = 0.05
 
-    num_trials  = 200
-    num_repeats = 100
+    num_trials  = 2
+    num_repeats = 10
     n_jobs = 32
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))

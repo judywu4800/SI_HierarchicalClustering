@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=typeI_barber
 #SBATCH --output=../../logs/typeI_barber_output.log
-#SBATCH --time=00:01:00
+#SBATCH --time=02:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
 
@@ -22,4 +22,4 @@ mkdir -p results
 
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
-python experiments/validity_experiments/type1_barber.py
+python experiments/validity_experiments/type1_barber_parallel.py

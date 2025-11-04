@@ -16,8 +16,8 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import default_converter
 from rpy2.robjects import numpy2ri
 
-R_SCRIPT = "/home/judydw/SI_HierarchicalClustering/src/r_functions.R"
-#R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R"
+#R_SCRIPT = "/home/judydw/SI_HierarchicalClustering/src/r_functions.R"
+R_SCRIPT = "/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R"
 _BARBER_FUN = None
 
 def init_worker_barber(r_script_path):
@@ -36,7 +36,7 @@ def one_repeat_task_barber(args):
         with localconverter(default_converter + numpy2ri.converter):
             X_r = ro.conversion.py2rpy(X)
         try:
-            pv = np.array(_BARBER_FUN(X_r, K, method, seed=int(seed)))[0]
+            pv = np.array(_BARBER_FUN(X_r, K, method, seed=int(rng.integers(1e9))))[0]
         except Exception:
             continue
         if np.isfinite(pv) and (not np.isnan(pv)):
@@ -61,7 +61,7 @@ def check_type1_pool_barber(n, p, sigma,
                       int(child_seeds[i].generate_state(1)[0]), label))
     ctx = get_context('spawn')
     with ctx.Pool(processes=n_jobs, initializer=init_worker_barber, initargs=(r_script,)) as pool:
-        results = list(pool.imap_unordered(one_repeat_task_barber, tasks, chunksize=50))
+        results = list(pool.imap_unordered(one_repeat_task_barber, tasks, chunksize=20))
     df = pd.DataFrame(results)
     return df
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     n, p, sigma = 30, 10, 1.0
     K = 3
     alpha = 0.05
-    num_trials  = 20
+    num_trials  = 2
     num_repeats = 10
     n_jobs = 32
 

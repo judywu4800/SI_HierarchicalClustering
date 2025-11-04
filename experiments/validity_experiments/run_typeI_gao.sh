@@ -22,4 +22,4 @@ mkdir -p results
 
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
-python experiments/validity_experiments/type1_gao.py
+python experiments/validity_experiments/type1_gao_parallel.py

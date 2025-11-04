@@ -1,6 +1,8 @@
 #library(devtools)
 library(fastcluster)
 library(clusterpval)
+library(parallel)
+
 
 fun_ss_hat_all = function(X) {
   # input(s):
@@ -86,6 +88,47 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
     return(pval)
 }
 
+run_gao_type1_parallel <- function(n, p, sigma,
+                                   K = 3, alpha = 0.05,
+                                   num_trials = 200, num_repeats = 20,
+                                   linkage = "complete",
+                                   n_jobs = 16, seed_master = 1) {
+
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
+
+  one_repeat <- function(i) {
+    set.seed(repeat_seeds[i])
+    mu <- rep(0, p)
+    trial_seeds <- sample.int(1e8, num_trials)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+
+      pvals[t] <- tryCatch({
+        get_gao_pval(X, K = K, linkage = linkage)
+      }, error = function(e) NA)
+    }
+
+    pvals <- pvals[is.finite(pvals)]
+    type1 <- mean(pvals < alpha)
+    return(type1)
+  }
+
+  results <- mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
+  df <- data.frame(
+    Method = "Gao",
+    Label = "Gao (sigma_all)",
+    Type1Error = unlist(results),
+    RepeatSeed = repeat_seeds
+  )
+  return(df)
+}
+
+
 get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
@@ -96,6 +139,48 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl,sig = sqrt(sigma_hat))$pval}
 
     return(pval)
+}
+
+run_gao_type1_clustered_parallel <- function(n, p, sigma,
+                                             K = 3, alpha = 0.05,
+                                             num_trials = 200,
+                                             num_repeats = 20,
+                                             linkage = "complete",
+                                             n_jobs = 16,
+                                             seed_master = 1) {
+
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
+
+  one_repeat <- function(i) {
+    set.seed(repeat_seeds[i])
+    mu <- rep(0, p)
+    trial_seeds <- sample.int(1e8, num_trials)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+
+      pvals[t] <- tryCatch({
+        get_gao_pval_clustered(X, K = K, linkage = linkage)
+      }, error = function(e) NA)
+    }
+
+    pvals <- pvals[is.finite(pvals)]
+    mean(pvals < alpha)
+  }
+
+  results <- mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
+  df <- data.frame(
+    Method = "Gao",
+    Label = "Gao (sigma_clustered)",
+    Type1Error = unlist(results),
+    RepeatSeed = repeat_seeds
+  )
+
+  return(df)
 }
 
 get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
@@ -500,6 +585,46 @@ get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
   hcl_at_K <- cutree(hcl, K)
   pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]
   return(pval)
+}
+
+run_barber_type1_parallel <- function(n, p, sigma,
+                                      K = 3, alpha = 0.05,
+                                      num_trials = 200,
+                                      num_repeats = 20,
+                                      linkage = "complete",
+                                      n_jobs = 16,
+                                      seed_master = 1) {
+
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
+
+  one_repeat <- function(i) {
+    set.seed(repeat_seeds[i])
+    mu <- rep(0, p)
+    trial_seeds <- sample.int(1e8, num_trials)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+      pvals[t] <- tryCatch({
+        get_barber_pval(X, K = K, linkage = linkage)
+      }, error = function(e) NA)
+    }
+
+    pvals <- pvals[is.finite(pvals)]
+    mean(pvals < alpha)
+  }
+
+  results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
+  df <- data.frame(
+    Method = "Barber",
+    Label = "Yun and Barber",
+    Type1Error = unlist(results),
+    RepeatSeed = repeat_seeds
+  )
+  return(df)
 }
 
 get_barber_pval_es <- function(X,true_means, K, linkage = "complete", seed=NULL){
