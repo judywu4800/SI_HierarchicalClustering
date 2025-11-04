@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=validity_gao_barber
-#SBATCH --output=../../logs/validity2_output.log
-#SBATCH --time=04:00:00
+#SBATCH --job-name=typeI_gao_clu
+#SBATCH --output=../../logs/typeI_gao_c_output.log
+#SBATCH --time=10:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
 
@@ -22,4 +22,4 @@ mkdir -p results
 
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
-python experiments/validity_experiments/check_validity2.py
+python experiments/validity_experiments/type1_gao_clustered.py
