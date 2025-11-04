@@ -20,11 +20,11 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
 
 def init_worker():
-    #ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
-    ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+    ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
 def compute_pval_barber_es(X,true_means, K=3, linkage = "complete",seed=None):
-    #ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
-    ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+    ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+    #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
     with localconverter(default_converter + numpy2ri.converter):
         ro.globalenv['X'] = ro.conversion.py2rpy(X)
         ro.globalenv['true_mean_py'] = ro.conversion.py2rpy(true_means)
