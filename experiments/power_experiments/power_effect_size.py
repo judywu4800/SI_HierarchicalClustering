@@ -15,7 +15,7 @@ if __name__ == "__main__":
     tau_list = [0,0.01,0.025, 0.05,0.075, 0.1]
     deltas = np.linspace(5,20,9)
     alpha = 0.05
-    num_trials = 2
+    num_trials = 2000
     K = 2
     n_jobs = -1
 
