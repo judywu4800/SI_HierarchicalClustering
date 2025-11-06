@@ -59,8 +59,8 @@ if __name__ == "__main__":
     np.random.seed(0)
     n = 30
     sigma = 1
-    n_trials = 2
-    K =2000
+    n_trials = 2000
+    K =2
     deltas = np.linspace(5,20,9)
     delta_list = np.repeat(deltas,n_trials)
     #deltas = [0]
