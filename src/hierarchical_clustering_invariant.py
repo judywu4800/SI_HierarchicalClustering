@@ -281,7 +281,10 @@ class AgglomerativeClustering:
         cluster_labels = cluster_labels - cluster_labels.min() + 1
 
         if manual_color:
-            target_points = [0, 10, 23]
+            if self.n_clusters == 3:
+                target_points = [0, 10, 23]
+            elif self.n_clusters == 2:
+                target_points = [0, 10]
             target_colors = ["#ff924c", "#7ab13f", "#9579d9"]
             cluster_color_map = {cluster_labels[i]: c for i, c in zip(target_points, target_colors)}
 

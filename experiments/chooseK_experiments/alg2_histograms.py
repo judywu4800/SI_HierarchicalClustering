@@ -22,7 +22,7 @@ def _run_one_tau(tau, X, true_K, outdir, total_alpha=0.05,
 
     Ks = []
     for _ in range(num_trials):
-        K_hat, _, _ = find_best_K_F(X, tau=tau, alpha_list=alpha_list)
+        K_hat, _, _, _ = find_best_K_F(X, tau=tau, alpha_list=alpha_list)
         Ks.append(K_hat)
 
     counter = Counter(Ks)

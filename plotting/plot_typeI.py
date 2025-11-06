@@ -7,9 +7,12 @@ import seaborn as sns
 
 if __name__ == "__main__":
     output_dir = os.path.join("../results/figures")
-    type1_gao = pd.read_csv("../results/raw/type1_gao_by_repeat-2.csv")
-    type1_gao_c = pd.read_csv("../results/raw/type1_gao_c_by_repeat.csv")
-    type1_barber = pd.read_csv("../results/raw/type1_barber_by_repeat-2.csv")
+    #type1_gao = pd.read_csv("../results/raw/type1_gao_by_repeat-2.csv")
+    #type1_gao_c = pd.read_csv("../results/raw/type1_gao_c_by_repeat.csv")
+    #type1_barber = pd.read_csv("../results/raw/type1_barber_by_repeat-2.csv")
+    type1_gao = pd.read_csv("../results/raw/type1_gao.csv")
+    type1_gao_c = pd.read_csv("../results/raw/type1_gao_clustered.csv")
+    type1_barber = pd.read_csv("../results/raw/type1_barber.csv")
     type1 = pd.read_csv("../results/raw/type1_error_randomized.csv")
 
     alpha = 0.05
@@ -20,11 +23,12 @@ if __name__ == "__main__":
     df_tau_plot = df_tau[['Group', 'Type', 'Type I Error']]
 
     df_gb_plot = pd.concat([
-        type1_gao.assign(Group='Gao_all', Type='Gao_all')[['Group', 'Type', 'Type I Error']],
-        type1_gao_c.assign(Group='Gao_clustered', Type='Gao_clustered')[['Group', 'Type', 'Type I Error']],
-        type1_barber.assign(Group='Barber', Type='Barber')[['Group', 'Type', 'Type I Error']]
+        type1_gao.assign(Group='Gao_all', Type='Gao_all')[['Group', 'Type', 'Type1Error']],
+        type1_gao_c.assign(Group='Gao_clustered', Type='Gao_clustered')[['Group', 'Type', 'Type1Error']],
+        type1_barber.assign(Group='Barber', Type='Barber')[['Group', 'Type', 'Type1Error']]
     ], ignore_index=True)
 
+    df_gb_plot = df_gb_plot.rename(columns={'Type1Error': 'Type I Error'})
     df_all = pd.concat([df_tau_plot, df_gb_plot], ignore_index=True)
 
 

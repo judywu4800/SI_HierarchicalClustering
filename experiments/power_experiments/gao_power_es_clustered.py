@@ -33,7 +33,7 @@ def compute_pval_gao_es(X,true_means, K=3, linkage = "complete",seed = None):
     ro.globalenv['seed'] = int(seed)
     result = ro.r("get_gao_pval_es_clustered(X,true_mean_py, K_py, link_py, seed)")
     return result
-def compute_power_Gao(sigma, delta, alpha, num_trials=10000,rng=None):
+def compute_power_Gao(sigma, K, delta, alpha, num_trials=10000,rng=None):
     if rng is None:
         rng = np.random.default_rng()
     p_values = []
@@ -41,8 +41,8 @@ def compute_power_Gao(sigma, delta, alpha, num_trials=10000,rng=None):
     for _ in range(num_trials):
         trial_rng = np.random.default_rng(rng.integers(1e9))
         trial_seed = int(trial_rng.integers(1e9))
-        X, true_label, true_means = generate_data_barbers(10, delta, sigma, true_mean = True, rng=trial_rng)
-        pval, effect = np.array(compute_pval_gao_es(X,true_means, K=3, linkage="complete", seed=trial_seed))
+        X, true_label, true_means = generate_data_barbers(15, delta, sigma, n_clusters=K, true_mean = True, rng=trial_rng)
+        pval, effect = np.array(compute_pval_gao_es(X,true_means, K=K, linkage="complete", seed=trial_seed))
 
         p_values.append(pval)
         effect_sizes.append(effect)
@@ -50,17 +50,17 @@ def compute_power_Gao(sigma, delta, alpha, num_trials=10000,rng=None):
     rejection = (np.array(p_values) < alpha).astype(int)
     return rejection, effect_sizes
 
-def run_single_delta_gao(delta, base_seed=0):
+def run_single_delta_gao(delta,K, base_seed=0):
     rng = np.random.default_rng(base_seed + int(delta * 1000))
-    return compute_power_Gao(1, delta, 0.05, 2000,rng=rng)
+    return compute_power_Gao(1, K, delta, 0.05, 2000,rng=rng)
 
 if __name__ == "__main__":
     random.seed(0)
     np.random.seed(0)
     n = 30
-    p = 10
     sigma = 1
-    n_trials = 2000
+    n_trials = 2
+    K =2000
     deltas = np.linspace(5,20,9)
     delta_list = np.repeat(deltas,n_trials)
     #deltas = [0]
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
 
     with Pool(processes=num_workers, initializer=init_worker) as pool:
-        results_gao = pool.map(run_single_delta_gao, deltas)
+        results_gao = pool.starmap(run_single_delta_gao, [(delta, K) for delta in deltas])
 
     rejections_all, effect_all = zip(*results_gao)
     rejections_all = np.concatenate(rejections_all, axis=0)
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
 
-    csv_path = os.path.join(output_dir, "rejection_es_gao_clustered.csv")
+    csv_path = os.path.join(output_dir, f"rejection_es_gao_clustered_K{K}.csv")
     df_gao.to_csv(csv_path, index=False)
 
 

@@ -14,9 +14,7 @@ import seaborn as sns
 import os
 
 if __name__ == '__main__':
-    random.seed()
-    np.random.seed(0)
-    rng_global = np.random.default_rng(0)
+    rng_global = np.random.default_rng(42)
     n_each = 10
     sigma = 1
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
@@ -24,7 +22,7 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
 
     delta_values = [2,4,6,8,10,12,14]
-    taus = [0,0.05]
+    taus = [0,0.1]
     n_runs = 500
     n_clusters = 3
     # Data collection
@@ -37,7 +35,7 @@ if __name__ == '__main__':
             seed = rng_global.integers(1e9)
             rng = np.random.default_rng(seed)
 
-            X, y = generate_data_barbers(n_each, delta, sigma,rng=rng)
+            X, y = generate_data_barbers(n_each, delta, sigma, n_clusters=n_clusters,rng=rng)
             tss = np.sum((X - np.mean(X, axis=0)) ** 2)
 
             for tau in taus:
@@ -74,6 +72,6 @@ if __name__ == '__main__':
     df_wcss = pd.DataFrame(results_wcss)
     df_ari = pd.DataFrame(results_ari)
     df_recovery = pd.DataFrame(results_recovery)
-    df_wcss.to_csv(os.path.join(output_dir, 'df_wcss_deltas.csv'))
-    df_ari.to_csv(os.path.join(output_dir, 'df_ari_deltas.csv'))
-    df_recovery.to_csv(os.path.join(output_dir, 'df_recovery_deltas.csv'))
+    df_wcss.to_csv(os.path.join(output_dir, f'df_wcss_deltas_K{n_clusters}_fig3.csv'))
+    df_ari.to_csv(os.path.join(output_dir, f'df_ari_deltas_K{n_clusters}_fig3.csv'))
+    df_recovery.to_csv(os.path.join(output_dir, f'df_recovery_deltas_K{n_clusters}_fig3.csv'))

@@ -16,16 +16,17 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 
 if __name__ == '__main__':
-    random.seed(0)
-    np.random.seed(0)
+    rng = np.random.default_rng(0)
     n_each = 10
     delta = 8
     sigma = 1
+    true_K=3
+    tau = 0.1
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.join(BASE_DIR, "results", "figures")
     os.makedirs(output_dir, exist_ok=True)
 
-    X, y = generate_data_barbers(n_each, delta, sigma, true_mean=False,rng = np.random.RandomState(0))
+    X, y = generate_data_barbers(n_each, delta, sigma, n_clusters=true_K, true_mean=False,rng = rng)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -36,15 +37,27 @@ if __name__ == '__main__':
     '''
 
     manual_colors = ["#ff924c", "#9579d9", "#7ab13f"]
-    cluster_0 = y[0]
-    cluster_10 = y[10]
-    cluster_23 = y[23]
 
-    color_dict = {
-        cluster_0: "#ff924c",
-        cluster_10: "#7ab13f",
-        cluster_23: "#9579d9"
-    }
+    if true_K == 3:
+        target_points = [0, 10, 23]
+        cluster_0 = y[0]
+        cluster_10 = y[10]
+        cluster_23 = y[23]
+        color_dict = {
+            cluster_0: "#ff924c",
+            cluster_10: "#7ab13f",
+            cluster_23: "#9579d9"
+        }
+    elif true_K == 2:
+        target_points = [0, 10]
+        cluster_0 = y[0]
+        cluster_10 = y[10]
+        color_dict = {
+            cluster_0: "#ff924c",
+            cluster_10: "#7ab13f",
+        }
+
+
 
     unique_labels = np.unique(y)
     remaining_clusters = [lab for lab in unique_labels if lab not in color_dict]
@@ -67,18 +80,18 @@ if __name__ == '__main__':
         axes[0].scatter([], [], color=color_dict[label_val], label=f"Label {int(label_val)}")
     legend = axes[0].legend(
         title="Cluster",
-        loc="upper right",
+        loc="upper left",
         fontsize=10,
         title_fontsize=12,
         frameon=False
     )
     legend.get_title().set_fontweight('bold')
 
-    model = cluster.AgglomerativeClustering(n_clusters=3, linkage='complete')
+    model = cluster.AgglomerativeClustering(n_clusters=true_K, linkage='complete')
     labels_sklearn = model.fit_predict(X)
     Z = linkage(X, method='complete')
 
-    target_points = [0, 10, 23]
+
     target_colors = ["#ff924c", "#7ab13f", "#9579d9"]
     cluster_color_map = {labels_sklearn[i]: c for i, c in zip(target_points, target_colors)}
 
@@ -115,14 +128,14 @@ if __name__ == '__main__':
     axes[1].tick_params(axis='y', labelsize=10)
     axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=0)
 
-    model_r = AgglomerativeClustering(X, tau=0.05, n_clusters=3, linkage="complete", random_state=0)
+    model_r = AgglomerativeClustering(X, tau=tau, n_clusters=true_K, linkage="complete", random_state=42)
     model_r.fit(dendrogram=True)
     #print(model_r.K_clusters)
     #print(model_r.existing_clusters_log)
     model_r.plot_dendrogram(ax=axes[2], show=False, save_fig=False, outdir=output_dir, manual_color=True)
-    axes[2].set_title("Randomized (tau=0.05)", fontsize=14, fontweight='bold')
+    axes[2].set_title(f"Randomized (tau={tau})", fontsize=14, fontweight='bold')
 
     plt.tight_layout(pad=0.2, w_pad=0.3)
-    plt.savefig(os.path.join(output_dir, "figure1.png"),
-                dpi=300, bbox_inches='tight', pad_inches=0.01)
+    plt.savefig(os.path.join(output_dir, f"figure1_K{true_K}_tau{tau}.png"),
+                dpi=300, bbox_inches='tight', pad_inches=0.02)
     plt.close()

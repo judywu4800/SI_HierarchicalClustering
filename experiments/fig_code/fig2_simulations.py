@@ -14,8 +14,7 @@ import seaborn as sns
 import os
 
 if __name__ == '__main__':
-    random.seed(0)
-    np.random.seed(0)
+    master_rng = np.random.default_rng(0)
     n_each = 10
     delta = 6
     sigma = 1
@@ -23,7 +22,8 @@ if __name__ == '__main__':
     output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
 
-    tau_values = [0,0.01,0.025,0.05, 0.1,0.25,0.5,0.75,1,2,5]
+    #tau_values = [0,0.01,0.025,0.05, 0.1,0.25,0.5,0.75,1,2,5]
+    tau_values = [0, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5]
     n_runs = 500
     n_clusters = 3
     # Data collection
@@ -31,19 +31,21 @@ if __name__ == '__main__':
     results_ari = []
     results_recovery = []
 
-    for i in range(n_runs):
+    run_seeds = master_rng.integers(0, 1e9, size=n_runs)
+    for i, seed in enumerate(run_seeds):
         # generate data once per repetition
-        X, y = generate_data_barbers(n_each, delta, sigma)
+        rng = np.random.default_rng(seed)
+        X, y = generate_data_barbers(n_each, delta, sigma,n_clusters=n_clusters, rng=rng)
         tss = np.sum((X - np.mean(X, axis=0)) ** 2)
 
         for tau in tau_values:
             if tau != 0:
-                clustering = AgglomerativeClustering(X, n_clusters=n_clusters, tau=tau, random_state=i)
+                clustering = AgglomerativeClustering(X, n_clusters=n_clusters, tau=tau, random_state=seed)
                 clustering.fit()
                 labels_pred = clustering.get_cluster_labels()
                 method = 'Randomized'
             else:
-                clustering = AgglomerativeClustering(X, n_clusters=n_clusters, tau=tau, random_state=i)
+                clustering = AgglomerativeClustering(X, n_clusters=n_clusters, tau=tau, random_state=seed)
                 clustering.fit()
                 labels_pred = clustering.get_cluster_labels()
                 method = 'Naive'
@@ -65,6 +67,6 @@ if __name__ == '__main__':
     df_wcss = pd.DataFrame(results_wcss)
     df_ari = pd.DataFrame(results_ari)
     df_recovery = pd.DataFrame(results_recovery)
-    df_wcss.to_csv(os.path.join(output_dir, 'df_wcss.csv'))
-    df_ari.to_csv(os.path.join(output_dir, 'df_ari.csv'))
-    df_recovery.to_csv(os.path.join(output_dir, 'df_recovery.csv'))
+    df_wcss.to_csv(os.path.join(output_dir, f'df_wcss_{n_clusters}_fig2.csv'))
+    df_ari.to_csv(os.path.join(output_dir, f'df_ari_{n_clusters}_fig2.csv'))
+    df_recovery.to_csv(os.path.join(output_dir, f'df_recovery_{n_clusters}_fig2.csv'))

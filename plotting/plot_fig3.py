@@ -15,10 +15,11 @@ import os
 
 
 if __name__ == "__main__":
+    n_clusters = 3
     output_dir = os.path.join("../results/figures")
-    df_wcss = pd.read_csv("../results/raw/df_wcss_deltas.csv")
-    df_ari =  pd.read_csv("../results/raw/df_ari_deltas.csv")
-    df_recovery =  pd.read_csv("../results/raw/df_recovery_deltas.csv")
+    df_wcss = pd.read_csv(f"../results/raw/df_wcss_deltas_K{n_clusters}_fig3.csv")
+    df_ari =  pd.read_csv(f"../results/raw/df_ari_deltas_K{n_clusters}_fig3.csv")
+    df_recovery =  pd.read_csv(f"../results/raw/df_recovery_deltas_K{n_clusters}_fig3.csv")
 
     # --- aggregate recovery probability ---
     df_recovery = (
@@ -70,7 +71,7 @@ if __name__ == "__main__":
 
 
     plt.tight_layout(pad=0.2, w_pad=0.3)
-    plt.savefig(os.path.join(output_dir, "figure3.png"),
+    plt.savefig(os.path.join(output_dir, f"figure3_K{n_clusters}.png"),
                 dpi=300, bbox_inches='tight', pad_inches=0.02)
     plt.close()
 

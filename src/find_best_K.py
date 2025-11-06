@@ -4,14 +4,14 @@ from utils import *
 import warnings
 import matplotlib.pyplot as plt
 
-def generate_alpha_list(n=30, total_alpha=0.05, seed=42):
+def generate_alpha_list(n=30, total_alpha=0.05, seed=0):
     np.random.seed(seed)
     length = n - 1
     group_size = length // 3
-    large = np.random.uniform(0.1, 0.5, size=5)
-    medium = np.random.uniform(0.0005, 0.002, size=5)
-    #small = np.random.uniform(1e-6, 5e-4, size=length - 2 * group_size)
-    small = np.zeros(n-11)
+    large = np.random.uniform(0.01, 0.05, size=5)
+    medium = np.random.uniform(0.0005, 0.002, size=8)
+    small = np.random.uniform(1e-6, 5e-4, size=length - 13)
+    #small = np.zeros(length - 13)
     alpha_raw = np.concatenate([large, medium, small])
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
     return alpha_list
@@ -34,11 +34,16 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=0.5, linkage="complete", total
     if len(alpha_list) != (n - 1):
         raise ValueError("The length of alpha_list should be equal to n - 1.")
 
+    if rng is None:
+        rng = np.random.default_rng()
+    elif isinstance(rng, (int, np.integer)):
+        rng = np.random.default_rng(rng)
+
     p_values = []
     alpha_seq = []
     K_hat = 1
 
-    model = AgglomerativeClustering(X, tau=tau, n_clusters=1, linkage=linkage)
+    model = AgglomerativeClustering(X, tau=tau, n_clusters=1, linkage=linkage, random_state=rng.integers(1e9))
     model.fit()
     winning_nodes = list(model.existing_clusters_log.keys())  # to get all merges
     for t in range(len(winning_nodes)):

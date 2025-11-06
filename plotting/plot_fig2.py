@@ -15,10 +15,11 @@ import os
 
 
 if __name__ == "__main__":
+    K=3
     output_dir = os.path.join("../results/figures")
-    df_wcss = pd.read_csv("../results/raw/df_wcss.csv")
-    df_ari =  pd.read_csv("../results/raw/df_ari.csv")
-    df_recovery =  pd.read_csv("../results/raw/df_recovery.csv")
+    df_wcss = pd.read_csv(f"../results/raw/df_wcss_{K}_fig2.csv")
+    df_ari =  pd.read_csv(f"../results/raw/df_ari_{K}_fig2.csv")
+    df_recovery =  pd.read_csv(f"../results/raw/df_recovery_{K}_fig2.csv")
 
     # --- aggregate recovery probability ---
     df_recovery = df_recovery.groupby(['Tau', 'Method'])['Recovery'].mean().reset_index()
@@ -63,7 +64,7 @@ if __name__ == "__main__":
 
 
     plt.tight_layout(pad=0.2, w_pad=0.3)
-    plt.savefig(os.path.join(output_dir, "figure2.png"),
+    plt.savefig(os.path.join(output_dir, f"figure2_K{K}.png"),
                 dpi=300, bbox_inches='tight', pad_inches=0.02)
     plt.close()
 

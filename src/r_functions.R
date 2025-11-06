@@ -82,9 +82,9 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
   }
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     sigma_hat <- fun_ss_hat_all(X)
-    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl,sig = sqrt(sigma_hat))$pval
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=K, k1=1, k2=2, ndraws=10000, hcl=hcl,sig = sqrt(sigma_hat))$pval
                }
-    else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
+    else { pval <- test_hier_clusters_exact(X, link=linkage, K=K, k1=1, k2=2, hcl=hcl)$pval}
     return(pval)
 }
 
@@ -134,9 +134,9 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     hcl_at_K <- cutree(hcl, K)
     sigma_hat <- fun_ss_hat_clustered(X,hcl_at_K, K)
-    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl, sig = sqrt(sigma_hat))$pval
+    if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=K, k1=1, k2=2, ndraws=10000, hcl=hcl, sig = sqrt(sigma_hat))$pval
                }
-    else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl,sig = sqrt(sigma_hat))$pval}
+    else { pval <- test_hier_clusters_exact(X, link=linkage, K=K, k1=1, k2=2, hcl=hcl,sig = sqrt(sigma_hat))$pval}
 
     return(pval)
 }
@@ -639,8 +639,8 @@ get_barber_pval_es <- function(X,true_means, K, linkage = "complete", seed=NULL)
   mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
   mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
   effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_hat)
-
-  pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]
+  if (K==2){ pval <- fun_proposed_exact(X)}
+  else {pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]}
   return(c(pval,effect))
 }
 

@@ -8,41 +8,38 @@ from scipy.stats import multivariate_normal,f
 from joblib import Parallel, delayed
 from itertools import combinations
 
-def generate_data_barbers(n_each, delta, sigma, true_mean=False, rng=None):
-    # ---- Handle sigma input ----
-    # if scalar: make it sigma^2 * I
+def generate_data_barbers(n_each, delta, sigma, n_clusters=3, true_mean=False, rng=None):
     if np.isscalar(sigma):
         cov = np.eye(2) * (sigma ** 2)
     else:
         cov = np.asarray(sigma)
-        if cov.shape[0] != cov.shape[1]:
-            raise ValueError("Sigma must be a square covariance matrix.")
-        if cov.shape[0] != 2:
-            raise ValueError(f"Expected 2D features, got covariance matrix of shape {cov.shape}")
+        if cov.shape != (2, 2):
+            raise ValueError(f"Expected 2x2 covariance matrix, got shape {cov.shape}")
 
     if rng is None:
         rng = np.random.default_rng()
-    # ---- Define cluster means ----
-    mu1 = np.array([0, 0])
-    mu2 = np.array([delta, 0])
-    mu3 = np.array([delta / 2, np.sqrt(delta ** 2 - (delta ** 2) / 4)])
 
-    # ---- Generate data ----
-    X1 = rng.multivariate_normal(mean=mu1, cov=cov, size=n_each)
-    X2 = rng.multivariate_normal(mean=mu2, cov=cov, size=n_each)
-    X3 = rng.multivariate_normal(mean=mu3, cov=cov, size=n_each)
+    if n_clusters == 2:
+        mus = [np.array([0, 0]),
+               np.array([delta, 0])]
+    elif n_clusters == 3:
+        mus = [np.array([0, 0]),
+               np.array([delta, 0]),
+               np.array([delta / 2, np.sqrt(delta ** 2 - (delta ** 2) / 4)])]
 
-    # ---- Labels ----
-    labels1 = np.ones(n_each)
-    labels2 = np.ones(n_each) * 2
-    labels3 = np.ones(n_each) * 3
+    else:
+        raise ValueError("n_clusters must be 2 or 3.")
 
-    X = np.vstack([X1, X2, X3])
-    labels = np.concatenate([labels1, labels2, labels3])
+    X_parts, labels_parts = [], []
+    for i, mu in enumerate(mus, start=1):
+        Xi = rng.multivariate_normal(mean=mu, cov=cov, size=n_each)
+        X_parts.append(Xi)
+        labels_parts.append(np.ones(n_each) * i)
 
-    # ---- True mean per point ----
-    cluster_means = np.vstack([mu1, mu2, mu3])
-    mu = cluster_means[labels.astype(int) - 1]
+    X = np.vstack(X_parts)
+    labels = np.concatenate(labels_parts)
+
+    mu = np.vstack(mus)[labels.astype(int) - 1]
 
     if true_mean:
         return X, labels, mu
@@ -737,18 +734,18 @@ def check_power_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta, alpha=
 
     return power_results, recovery_results, effect_size_results
 
-def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, rng=None):
+def single_power_es_random_pair(delta, n,p, sigma, tau, alpha,K=3, num_trials=500, rng=None):
     if rng is None:
         rng = np.random.default_rng()
     p_values = []
     effect_sizes = []
     recovery = 0
     trial_count = 0
-
+    n_each = n//K
     for _ in range(num_trials):
         trial_count += 1
-        X, true_labels, true_means = generate_data_barbers(10,delta,sigma, true_mean=True, rng=rng)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=3, linkage="complete", random_state=rng.integers(1e9))
+        X, true_labels, true_means = generate_data_barbers(n_each,delta,sigma, n_clusters=K, true_mean=True, rng=rng)
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="complete", random_state=rng.integers(1e9))
         model.fit()
 
         #idx1, idx2 = np.random.choice(np.arange(3), size=2, replace=False)
@@ -772,7 +769,7 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, 
         non_alternative = len(unique_labels)== 1
         #if tau < 0.05:
         #    grid_width = 40
-        p_val, _,_ = model.merge_inference_F_random_pair_grid(c1, c2, grid_width= 180, ncoarse=30, ngrid=1000)
+        p_val, _,_ = model.merge_inference_F_random_pair_grid(c1, c2, grid_width= 250, ncoarse=30, ngrid=1000)
         p_values.append(p_val)
         if not non_alternative:
             recovery += 1
@@ -785,18 +782,18 @@ def single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials=500, 
 
     return reject, recovery_prob, effect_sizes
 
-def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, num_trials=500, seed=None):
+def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, K = 3, num_trials=500, seed=None):
     if seed is not None:
         rng = np.random.default_rng(seed)
     else:
         rng = np.random.default_rng()
-    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, num_trials, rng=rng)
+    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, K=K, num_trials=num_trials, rng=rng)
     return delta, tau, reject, effect_sizes,recovery_prob
 
 def check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.05,
-                                 num_trials=500, n_jobs=-1, base_seed=0):
+                                 num_trials=500, K=3, n_jobs=-1, base_seed=0):
     results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, num_trials,
+        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, K, num_trials,
                                                         seed=base_seed + i * 100 + j)
         for i, tau in enumerate(tau_list)
         for j, delta in enumerate(deltas)
