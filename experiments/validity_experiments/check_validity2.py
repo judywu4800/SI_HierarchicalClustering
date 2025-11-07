@@ -111,7 +111,7 @@ if __name__ == "__main__":
     n = 30
     p = 10
     sigma = 1.0
-    K = 3
+    K = 2
     linkage = "complete"
     num_trials = 1000
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     pvals_result = {"Gao (sigma_all)": pvals_gao, "Gao (sigma_clustered)": pvals_gao_c, "Barber": pvals_barber}
     pvals_df = pd.DataFrame.from_dict(pvals_result)
 
-    pvals_df.to_csv(os.path.join(output_dir, "pval_valid_gao&barber.csv"), index=False)
+    pvals_df.to_csv(os.path.join(output_dir, f"pval_valid_gao&barber_K{K}.csv"), index=False)
 
 
 

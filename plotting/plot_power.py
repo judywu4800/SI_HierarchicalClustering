@@ -14,10 +14,10 @@ if __name__ == "__main__":
     #dfgc = pd.read_csv("../results/raw/rejection_and_effect_gao_clustered.csv")
     #dfb = pd.read_csv("../results/raw/rejection_and_effect_barber.csv")
     #dfr = pd.read_csv("../results/raw/reject_es-6.csv")
-    dfg = pd.read_csv("../results/raw/rejection_es_gao.csv")
-    dfgc = pd.read_csv("../results/raw/rejection_es_gao_clustered.csv")
-    dfb = pd.read_csv("../results/raw/rejection_es_barber.csv")
-    dfr = pd.read_csv("../results/raw/reject_effect_size1.csv")
+    dfg = pd.read_csv("../results/raw/rejection_es_gao_K2.csv")
+    dfgc = pd.read_csv("../results/raw/rejection_es_gao_clustered_K2.csv")
+    dfb = pd.read_csv("../results/raw/rejection_es_barber_K2.csv")
+    dfr = pd.read_csv("../results/raw/reject_effect_size_K2.csv")
 
 
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
 
     colors = {
-        "sel": ["#729869",  "#587450", "#6BBBAF", "#3CA1A4"],#["#C4EAA7", "#A9D595", "#8DBE7E", "#729869", "#587450", "#3F5237", "#252D1D"],
+        "sel": ["#587450","#8DBE7E","#729869",  "#6BBBAF", "#3CA1A4"],#["#C4EAA7", "#A9D595", "#8DBE7E", "#729869", "#587450", "#3F5237", "#252D1D"],
         "gao": "#F7B718",
         "barber": "#B069DB"
     }
@@ -87,6 +87,18 @@ if __name__ == "__main__":
         )
 
     bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
+        dfgc, xcol="effect_size", ycol="reject",
+        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
+        alpha=alpha
+    )
+    if len(bx) > 0:
+        plt.errorbar(
+            bx, by, yerr=[by - lower, upper - by],
+            fmt='s--', capsize=4,
+            color='red',
+            label="Gao et al. (sigma_clustered)"
+        )
+    bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
         dfg, xcol="effect_size", ycol="reject",
         x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
         alpha=alpha
@@ -98,7 +110,6 @@ if __name__ == "__main__":
             color=colors["gao"],
             label="Gao et al. (sigma_all)"
         )
-
     bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
         dfb, xcol="effect_size", ycol="reject",
         x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
@@ -122,5 +133,5 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "power_vs_effectsize.png"))
+    plt.savefig(os.path.join(output_dir, "power_vs_effectsize_K2.png"))
     plt.close()

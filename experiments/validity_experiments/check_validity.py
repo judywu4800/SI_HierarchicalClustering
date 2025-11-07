@@ -11,7 +11,7 @@ if __name__ == "__main__":
     n = 30
     p = 10
     sigma = 1.0
-    K = 3
+    K = 2
     tau_list = [0.025,0.05,0.1,0.5,1,5]
     #tau_list = [0.01]
     layer = -1
@@ -29,4 +29,4 @@ if __name__ == "__main__":
 
     df = pd.DataFrame({f"tau={tau}": all_p_values[tau] for tau in tau_list})
     df["naive"] = naive_p_values
-    df.to_csv(os.path.join(output_dir, "pval_validity_randomized.csv"), index=False)
+    df.to_csv(os.path.join(output_dir, f"pval_validity_randomized_K{K}.csv"), index=False)

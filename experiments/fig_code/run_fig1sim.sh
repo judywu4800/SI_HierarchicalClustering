@@ -1,9 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=fig1_sim
-#SBATCH --output=../../logs/fig1_sim_output.log
-#SBATCH --time=02:00:00
-#SBATCH --mem=32G
-#SBATCH --cpus-per-task=32
+#SBATCH --job-name=findK_batch
+#SBATCH --output=../../logs/fig1/findK_batch_%A_%a.out
+#SBATCH --error=../../logs/fig1/findK_batch_%A_%a.err
+#SBATCH --array=0-9
+#SBATCH --time=00:30:00
+#SBATCH --mem=8G
+#SBATCH --cpus-per-task=1
+#SBATCH --account=stats
 
 
 module purge

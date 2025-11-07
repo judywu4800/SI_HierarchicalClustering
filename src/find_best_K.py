@@ -8,7 +8,7 @@ def generate_alpha_list(n=30, total_alpha=0.05, seed=0):
     np.random.seed(seed)
     length = n - 1
     group_size = length // 3
-    large = np.random.uniform(0.01, 0.05, size=5)
+    large = np.random.uniform(0.1, 0.5, size=5)
     medium = np.random.uniform(0.0005, 0.002, size=8)
     small = np.random.uniform(1e-6, 5e-4, size=length - 13)
     #small = np.zeros(length - 13)

@@ -16,6 +16,7 @@ if __name__ == "__main__":
     gao_c = df2['Gao (sigma_clustered)']
     barber = df2['Barber']
 
+    K=3
 
     def plot_ecdf(values, label, color=None):
         x = np.sort(values)
@@ -52,7 +53,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "ecdf_combined.png"))
+    plt.savefig(os.path.join(output_dir, f"ecdf_combined_K{K}.png"))
 
     plt.figure(figsize=(10, 6))
     for col in tau_cols:
@@ -77,4 +78,4 @@ if __name__ == "__main__":
     plt.legend()
     #plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "qq_plot_combined.png"))
+    plt.savefig(os.path.join(output_dir, f"qq_plot_combined_K{K}.png"))
