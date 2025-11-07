@@ -8,6 +8,10 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --account=stats
 
+export BATCH_ID=$SLURM_ARRAY_TASK_ID
+export NUM_BATCHES=10
+export REPS_PER_BATCH=10
+
 
 module purge
 source /sw/pkgs/arc/python3.10-anaconda/2023.03/etc/profile.d/conda.sh

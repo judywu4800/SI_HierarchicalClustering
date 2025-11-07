@@ -11,9 +11,8 @@ if __name__ == "__main__":
     num_batches = int(os.environ.get("NUM_BATCHES", 10)) # total number of batches
     reps_per_batch = int(os.environ.get("REPS_PER_BATCH", 10))  # trials per batch
 
-    rng = np.random.default_rng(0)
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results/raw")
+    output_dir = os.path.join(base_dir, "results/raw/fig1")
     os.makedirs(output_dir, exist_ok=True)
 
     delta = 8
@@ -23,6 +22,9 @@ if __name__ == "__main__":
     n_each = n//true_K
     total_alpha = 0.05
     num_trials = 100
+
+    master_seed = 42  
+    rng = np.random.default_rng(master_seed + batch_id)
 
     # generate data
     X, y = generate_data_barbers(n_each, delta, sigma, n_clusters=true_K, true_mean=False, rng=rng)
