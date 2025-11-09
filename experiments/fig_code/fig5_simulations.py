@@ -66,20 +66,27 @@ def run_gao_barber_pvals(n, p, sigma, K, linkage_list, num_trials=1000):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--K", type=int, default=None)
+    args = parser.parse_args()
+
     random.seed(0)
     np.random.seed(0)
     n, p, sigma = 30, 10, 1.0
-    num_trials = 1000
+    num_trials = 10
     n_jobs = -1
 
     randomized_linkages = ["complete", "single", "average", "minimax"]
     gaobarber_linkages = ["complete", "single", "average"]
 
-    for K in [2, 3]:
-        # ---- Randomized experiments
-        run_randomized_pvals(n, p, sigma, K, tau=0.1, linkage_list=randomized_linkages,
+    Ks = [args.K] if args.K is not None else [2, 3]
+
+    for K in Ks:
+        run_randomized_pvals(n, p, sigma, K, tau=0.1,
+                             linkage_list=randomized_linkages,
                              num_trials=num_trials, n_jobs=n_jobs)
 
-        # ---- Gao & Barber experiments
-        run_gao_barber_pvals(n, p, sigma, K, linkage_list=gaobarber_linkages,
+        run_gao_barber_pvals(n, p, sigma, K,
+                             linkage_list=gaobarber_linkages,
                              num_trials=num_trials)
