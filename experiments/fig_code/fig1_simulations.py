@@ -23,7 +23,7 @@ if __name__ == "__main__":
     total_alpha = 0.05
     num_trials = 100
 
-    master_seed = 42  
+    master_seed = 42
     rng = np.random.default_rng(master_seed + batch_id)
 
     # generate data

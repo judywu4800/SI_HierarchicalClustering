@@ -72,7 +72,7 @@ if __name__ == "__main__":
                 dfb["effect_size"].max())
 
     for i, (tau, g) in enumerate(dfr.groupby("tau")):
-        if tau in [0, 0.5, 0.75, 1.0]:
+        if tau in [0,0.05,0.025,0.075, 0.5, 0.75, 1.0]:
             continue
         bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
             g, xcol="effect_size", ycol="reject",

@@ -88,6 +88,24 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
     return(pval)
 }
 
+check_gao_uniformity_R <- function(
+  n = 30, p = 10, sigma = 1, K = 2,
+  linkage = "complete", num_trials = 1000, seed = 0
+){
+  set.seed(seed)
+  mu <- rep(0, p)
+  pvals <- numeric(num_trials)
+
+  for (i in seq_len(num_trials)) {
+    # generate null data X ~ N(0, sigma^2 I)
+    X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+    pvals[i] <- get_gao_pval(X, K, linkage, seed = sample.int(1e9, 1))
+    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+  }
+
+  return(pvals)
+}
+
 run_gao_type1_parallel <- function(n, p, sigma,
                                    K = 3, alpha = 0.05,
                                    num_trials = 200, num_repeats = 20,
@@ -139,6 +157,24 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=K, k1=1, k2=2, hcl=hcl,sig = sqrt(sigma_hat))$pval}
 
     return(pval)
+}
+
+check_gao_clustered_uniformity_R <- function(
+  n = 30, p = 10, sigma = 1, K = 2,
+  linkage = "complete", num_trials = 1000, seed = 0
+) {
+  set.seed(seed)
+  mu <- rep(0, p)
+  pvals <- numeric(num_trials)
+
+  for (i in seq_len(num_trials)) {
+    # Generate null data X ~ N(0, σ^2 I)
+    X <- matrix(rnorm(n * p, mean = 0, sd = sigma), nrow = n, ncol = p)
+    pvals[i] <- get_gao_pval_clustered(X, K, linkage, seed = sample.int(1e9, 1))
+    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+  }
+
+  return(pvals)
 }
 
 run_gao_type1_clustered_parallel <- function(n, p, sigma,
@@ -585,6 +621,24 @@ get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
   hcl_at_K <- cutree(hcl, K)
   pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]
   return(pval)
+}
+
+check_barber_uniformity_R <- function(
+  n = 30, p = 10, sigma = 1, K = 2,
+  linkage = "complete", num_trials = 1000, seed = 0
+) {
+  set.seed(seed)
+  mu <- rep(0, p)
+  pvals <- numeric(num_trials)
+
+  for (i in seq_len(num_trials)) {
+    # Generate null data X ~ N(0, σ² I)
+    X <- matrix(rnorm(n * p, mean = 0, sd = sigma), nrow = n, ncol = p)
+    pvals[i] <- get_barber_pval(X, K, linkage, seed = sample.int(1e9, 1))
+    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+  }
+
+  return(pvals)
 }
 
 run_barber_type1_parallel <- function(n, p, sigma,

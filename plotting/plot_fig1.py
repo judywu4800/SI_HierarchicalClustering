@@ -16,25 +16,37 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 from find_best_K import find_best_K_F, generate_alpha_list
 from collections import Counter
+import glob
 
 if __name__ == '__main__':
     np.random.seed(0)
     random.seed(0)
     rng = np.random.default_rng(0)
-    n_each = 10
-    delta = 8
-    sigma = 1
+    tau = 0.1
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.join(BASE_DIR, "results", "figures")
     os.makedirs(output_dir, exist_ok=True)
 
-    data = np.load(os.path.join(BASE_DIR,"results/raw/findK_results_tau005.npz"))
-    X = data['X']
-    y = data['y']
-    Ks = data['Ks']
-    true_K = data['true_K']
+    raw_dir = os.path.join(BASE_DIR, "results", "raw", "fig1")
+    all_files = sorted(glob.glob(os.path.join(raw_dir, "findK_results_tau005_K*.npz")))
+    Ks = []
+    X = y = None
+    true_K = 2
 
-    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    for f in all_files:
+        data = np.load(f)
+        Ks.extend(data['Ks'])
+        if X is None:  # only keep one representative dataset
+            X = data['X']
+            y = data['y']
+            true_K = int(data['true_K'])
+        data.close()
+
+    Ks = np.array(Ks)
+    #print(f"Loaded {len(all_files)} batch files, total {len(Ks)} trials combined.")
+
+    #print(Ks)
+    fig, axes = plt.subplots(2, 2, figsize=(10, 6))
 
 
     manual_colors = ["#ff924c", "#9579d9", "#7ab13f"]
@@ -57,7 +69,7 @@ if __name__ == '__main__':
     point_colors = [color_dict[label] for label in y]
 
     axes[0,0].scatter(X[:, 0], X[:, 1], s=50, c=point_colors)
-    axes[0,0].set_title('Data', fontsize=14, fontweight='bold')
+    axes[0,0].set_title('(a) Data', fontsize=14, fontweight='bold')
     axes[0,0].set_xlabel('Feature 1', fontsize=12, fontweight='bold')
     axes[0,0].set_ylabel('Feature 2', fontsize=12, fontweight='bold')
     axes[0,0].tick_params(axis='x', labelsize=8)
@@ -69,24 +81,24 @@ if __name__ == '__main__':
         axes[0,0].scatter([], [], color=color_dict[label_val], label=f"Label {int(label_val)}")
     legend = axes[0,0].legend(
         title="Cluster",
-        loc="upper right",
-        fontsize=10,
-        title_fontsize=12,
+        loc="lower right",
+        fontsize=9,
+        title_fontsize=11,
         frameon=False
     )
     legend.get_title().set_fontweight('bold')
 
-    axes[1, 0].hist(Ks, bins=20, density=True, alpha=0.5,
-                    color="blue", edgecolor="black", label="K hat")
-    axes[1, 0].axvline(x=true_K, color='red', linestyle='--',
-                       linewidth=2, label=f"True K = {true_K}")
-    axes[1, 0].set_xlabel("K", fontsize=12, fontweight='bold')
-    axes[1, 0].set_ylabel("Density", fontsize=12, fontweight='bold')
-    axes[1, 0].set_title("Histogram of K_hat", fontsize=14, fontweight='bold')
+    axes[1, 1].hist(Ks, bins=20, density=False, alpha=0.7,
+                    color="#9579d9", edgecolor="black", label=r"$\hat{K}$")
+    axes[1, 1].axvline(x=true_K, color='red', linestyle='--',
+                       linewidth=2, label=fr"$K_{{\mathrm{{true}}}}$= {true_K}")
+    axes[1, 1].set_xlabel("$\hat{K}$", fontsize=12, fontweight='bold')
+    axes[1, 1].set_ylabel("Density", fontsize=12, fontweight='bold')
+    axes[1, 1].set_title(r"(d) Histogram of $\hat{K}$", fontsize=14, fontweight='bold')
     #axes[1, 0].grid(True, linestyle="--", alpha=0.5)
-    axes[1, 0].legend(fontsize=10)
+    axes[1, 1].legend(fontsize=10)
 
-    model = cluster.AgglomerativeClustering(n_clusters=3, linkage='complete')
+    model = cluster.AgglomerativeClustering(n_clusters=true_K, linkage='complete')
     labels_sklearn = model.fit_predict(X)
     Z = linkage(X, method='complete')
 
@@ -120,22 +132,22 @@ if __name__ == '__main__':
         link_color_func=link_color_func,
         ax=axes[0,1],
     )
-    axes[0,1].set_title("Deterministic", fontsize=14, fontweight='bold')
+    axes[0,1].set_title("(b) Deterministic", fontsize=14, fontweight='bold')
     axes[0,1].set_xlabel("Sample Index", fontsize=12, fontweight='bold')
     axes[0,1].set_ylabel("Distance", fontsize=12, fontweight='bold')
     axes[0,1].tick_params(axis='x', labelsize=8)
     axes[0,1].tick_params(axis='y', labelsize=10)
     axes[0,1].set_xticklabels(axes[0,1].get_xticklabels(), rotation=0)
 
-    model_r = AgglomerativeClustering(X, tau=0.05, n_clusters=3, linkage="complete", random_state=42)
+    model_r = AgglomerativeClustering(X, tau=tau, n_clusters=true_K, linkage="complete", random_state=42)
     model_r.fit(dendrogram=True)
     #print(model_r.K_clusters)
     #print(model_r.existing_clusters_log)
-    model_r.plot_dendrogram(ax=axes[1,1], show=False, save_fig=False, outdir=output_dir, manual_color=True)
-    axes[1,1].set_title("Randomized (tau=0.05)", fontsize=14, fontweight='bold')
+    model_r.plot_dendrogram(ax=axes[1,0], show=False, save_fig=False, outdir=output_dir, manual_color=True)
+    axes[1,0].set_title(f"(c) Randomized (tau={tau})", fontsize=14, fontweight='bold')
 
 
     plt.tight_layout(pad=0.2, w_pad=0.3)
-    plt.savefig(os.path.join(output_dir, "figure1.png"),
+    plt.savefig(os.path.join(output_dir, f"figure1_K{true_K}.png"),
                 dpi=300, bbox_inches='tight', pad_inches=0.02)
     plt.close()

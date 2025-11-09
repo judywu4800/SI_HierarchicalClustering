@@ -12,7 +12,7 @@ if __name__ == "__main__":
     p = 10
     sigma = 1
     tau_list = [0,0.025,0.05,0.1,0.25, 0.5, 1, 5]
-    K = 3
+    K = 2
     layer = -1
     alpha = 0.05
     num_trials = 200
@@ -27,4 +27,4 @@ if __name__ == "__main__":
     output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
 
-    df_results.to_csv(os.path.join(output_dir, "type1_error_randomized.csv"), index=False)
+    df_results.to_csv(os.path.join(output_dir, f"type1_error_randomized_K{K}.csv"), index=False)

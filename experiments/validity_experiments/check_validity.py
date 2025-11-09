@@ -11,8 +11,8 @@ if __name__ == "__main__":
     n = 30
     p = 10
     sigma = 1.0
-    K = 2
-    tau_list = [0.025,0.05,0.1,0.5,1,5]
+    K = 3
+    tau_list = [0.025,0.05,0.1,0.25,0.5,1,5]
     #tau_list = [0.01]
     layer = -1
     linkage = "complete"

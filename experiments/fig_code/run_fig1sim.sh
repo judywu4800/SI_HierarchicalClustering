@@ -6,7 +6,6 @@
 #SBATCH --time=00:30:00
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=1
-#SBATCH --account=stats
 
 export BATCH_ID=$SLURM_ARRAY_TASK_ID
 export NUM_BATCHES=10

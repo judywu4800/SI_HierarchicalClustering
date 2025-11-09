@@ -285,7 +285,7 @@ class AgglomerativeClustering:
                 target_points = [0, 10, 23]
             elif self.n_clusters == 2:
                 target_points = [0, 10]
-            target_colors = ["#ff924c", "#7ab13f", "#9579d9"]
+            target_colors = ["#9579d9", "#7ab13f", "#ff924c"]
             cluster_color_map = {cluster_labels[i]: c for i, c in zip(target_points, target_colors)}
 
             all_clusters = np.unique(cluster_labels)
@@ -352,6 +352,8 @@ class AgglomerativeClustering:
             return self._centroid_linkage(new_node, cluster, data)
         elif self.linkage == 'median':
             return self._median_linkage(new_node, cluster, data)
+        elif self.linkage == 'minimax':
+            return self._minimax_linkage(new_node, cluster, data)
         else:
             raise ValueError("Unknown linkage method: {}".format(self.linkage))
 
@@ -408,45 +410,35 @@ class AgglomerativeClustering:
 
     def _minimax_linkage(self, new_node, cluster, data=None):
         if data is None:
-            # data = self.Z
             data = self.X
-        data_new_node = data[new_node.points]
-        data_cluster = data[cluster.points]
-        pairwise_distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
-        d_max_new_node = np.max(pairwise_distances, axis=1)
-        d_max_cluster = np.max(pairwise_distances, axis=0)
-        r_new_node = np.min(d_max_new_node)
-        r_cluster = np.min(d_max_cluster)
 
-        # Define minimax linkage as the max of both radii
-        return max(r_new_node, r_cluster)
+        all_points_idx = np.concatenate([new_node.points, cluster.points])
+        data_all = data[all_points_idx]
+        pairwise = distance.cdist(data_all, data_all, metric=self.affinity)
+        radii = np.max(pairwise, axis=1)
+        minimax_distance = np.min(radii)
+
+        return float(minimax_distance)
 
     def _weighted_linkage(self, new_node, cluster, data=None):
-        #TODO this is incorrect implementation
         if data is None:
-            # data = self.Z
             data = self.X
-        size_new = len(new_node.points)
-        size_cluster = len(cluster.points)
 
         # Ensure neither cluster is empty
+        size_new = len(new_node.points)
+        size_cluster = len(cluster.points)
         if size_new == 0 or size_cluster == 0:
             raise ValueError("One of the clusters is empty.")
 
-        # Extract points from X
+        # Compute centroids
         data_new_node = data[new_node.points]
         data_cluster = data[cluster.points]
+        centroid_new = np.mean(data_new_node, axis=0)
+        centroid_cluster = np.mean(data_cluster, axis=0)
 
-        # Calculate the pairwise distances
-        distances = distance.cdist(data_new_node, data_cluster, metric=self.affinity)
-
-        # Calculate the total weighted distance
-        total_weighted_distance = np.sum(distances)
-
-        # The weighted linkage distance is averaged based on the sizes of the clusters
-        weighted_distance = total_weighted_distance / (size_new * size_cluster)
-
-        return float(weighted_distance)  # Return as float
+        # Weighted linkage uses equal weight for each cluster (not point)
+        dist = self._calculate_distance(centroid_new, centroid_cluster)
+        return float(dist)
 
     def _centroid_linkage(self, new_node, cluster, data=None):
         if data is None:
