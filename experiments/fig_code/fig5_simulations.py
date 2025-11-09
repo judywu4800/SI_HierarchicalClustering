@@ -14,8 +14,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
 
 # ---- Source R functions ----
-ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
-#ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+#ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
 
 
 def run_randomized_pvals(n, p, sigma, K, tau, linkage_list, num_trials=1000, n_jobs=-1):
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     randomized_linkages = ["complete", "single", "average", "minimax"]
     gaobarber_linkages = ["complete", "single", "average"]
 
-    Ks = [args.K] if args.K is not None else [2, 3]
+    Ks = [args.K] if args.K is not None else [2,3]
 
     for K in Ks:
         run_randomized_pvals(n, p, sigma, K, tau=0.1,

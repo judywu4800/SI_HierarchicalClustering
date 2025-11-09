@@ -90,19 +90,31 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
 
 check_gao_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
-  linkage = "complete", num_trials = 1000, seed = 0
-){
-  set.seed(seed)
-  mu <- rep(0, p)
-  pvals <- numeric(num_trials)
+  linkage = "complete", num_trials = 1000,
+  num_repeats = 20, n_jobs = 8, seed_master = 0
+) {
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
 
-  for (i in seq_len(num_trials)) {
-    # generate null data X ~ N(0, sigma^2 I)
-    X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
-    pvals[i] <- get_gao_pval(X, K, linkage, seed = sample.int(1e9, 1))
-    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+  one_repeat <- function(i) {
+    set.seed(repeat_seeds[i])
+    trial_seeds <- sample.int(1e8, num_trials)
+    mu <- rep(0, p)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+      pvals[t] <- tryCatch({
+        get_gao_pval(X, K, linkage, seed = sample.int(1e9, 1))
+      }, error = function(e) NA)
+    }
+
+    pvals[is.finite(pvals)]
   }
 
+  results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+  pvals <- unlist(results)
   return(pvals)
 }
 
@@ -161,19 +173,33 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
 
 check_gao_clustered_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
-  linkage = "complete", num_trials = 1000, seed = 0
+  linkage = "complete", num_trials = 1000,
+  num_repeats = 20, n_jobs = 8, seed_master = 0
 ) {
-  set.seed(seed)
-  mu <- rep(0, p)
-  pvals <- numeric(num_trials)
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
 
-  for (i in seq_len(num_trials)) {
-    # Generate null data X ~ N(0, σ^2 I)
-    X <- matrix(rnorm(n * p, mean = 0, sd = sigma), nrow = n, ncol = p)
-    pvals[i] <- get_gao_pval_clustered(X, K, linkage, seed = sample.int(1e9, 1))
-    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+    one_repeat <- function(i) {
+        set.seed(repeat_seeds[i])
+    trial_seeds <- sample.int(1e8, num_trials)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = 0, sd = sigma), nrow = n, ncol = p)
+      pvals[t] <- tryCatch({
+        get_gao_pval_clustered(X, K = K, linkage = linkage)
+      }, error = function(e) NA)
+    }
+
+    pvals[is.finite(pvals)]
   }
 
+  # ---- parallel execution ----
+  results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
+  # ---- combine ----
+  pvals <- unlist(results)
   return(pvals)
 }
 
@@ -625,19 +651,31 @@ get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
 
 check_barber_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
-  linkage = "complete", num_trials = 1000, seed = 0
+  linkage = "complete", num_trials = 1000,
+  num_repeats = 20, n_jobs = 8, seed_master = 0
 ) {
-  set.seed(seed)
-  mu <- rep(0, p)
-  pvals <- numeric(num_trials)
+  set.seed(seed_master)
+  repeat_seeds <- sample.int(1e8, num_repeats)
 
-  for (i in seq_len(num_trials)) {
-    # Generate null data X ~ N(0, σ² I)
-    X <- matrix(rnorm(n * p, mean = 0, sd = sigma), nrow = n, ncol = p)
-    pvals[i] <- get_barber_pval(X, K, linkage, seed = sample.int(1e9, 1))
-    if (i %% 100 == 0) cat("Completed", i, "of", num_trials, "\n")
+  one_repeat <- function(i) {
+    set.seed(repeat_seeds[i])
+    trial_seeds <- sample.int(1e8, num_trials)
+    mu <- rep(0, p)
+
+    pvals <- numeric(num_trials)
+    for (t in seq_len(num_trials)) {
+      set.seed(trial_seeds[t])
+      X <- matrix(rnorm(n * p, mean = mu, sd = sigma), nrow = n, ncol = p)
+      pvals[t] <- tryCatch({
+        get_barber_pval(X, K, linkage, seed = sample.int(1e9, 1))
+      }, error = function(e) NA)
+    }
+
+    pvals[is.finite(pvals)]
   }
 
+  results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+  pvals <- unlist(results)
   return(pvals)
 }
 
