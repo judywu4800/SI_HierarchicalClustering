@@ -18,9 +18,6 @@ ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_fun
 #ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
 
 
-# ------------------------------------------------------------
-#  Section 1: Randomized p-value uniformity (Python)
-# ------------------------------------------------------------
 def run_randomized_pvals(n, p, sigma, K, tau, linkage_list, num_trials=1000, n_jobs=-1):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw/fig5")
@@ -74,7 +71,7 @@ if __name__ == "__main__":
     random.seed(0)
     np.random.seed(0)
     n, p, sigma = 30, 10, 1.0
-    num_trials = 10
+    num_trials = 100
     n_jobs = -1
 
     randomized_linkages = ["complete", "single", "average", "minimax"]

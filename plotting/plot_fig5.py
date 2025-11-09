@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    K = 3   # or 3 — can easily change
+    K = 2   # or 3 — can easily change
     alpha = 0.05
     tau = 0.1
     output_dir = os.path.join("../results/figures")
@@ -38,7 +38,7 @@ if __name__ == "__main__":
         # ---- Randomized (always exists) ----
         df_rand = pd.read_csv(f"../results/raw/fig5/pval_validity_randomized_K{K}_{linkage}.csv")
         col = f"tau={tau}"
-        plot_ecdf(df_rand[col].dropna().to_numpy(), f"RAC(τ={tau})", color_map["RAC"], ax=ax)
+        plot_ecdf(df_rand[col].dropna().to_numpy(), f"RAC({tau})", color_map["RAC"], ax=ax)
 
         # ---- If not minimax, also plot Gao & Barber ----
         if linkage != "minimax":

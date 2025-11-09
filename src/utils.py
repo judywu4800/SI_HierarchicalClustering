@@ -734,7 +734,7 @@ def check_power_multi_tau_delta_random_pair(n, p, sigma, tau_list, delta, alpha=
 
     return power_results, recovery_results, effect_size_results
 
-def single_power_es_random_pair(delta, n,p, sigma, tau, alpha,K=3, num_trials=500, rng=None):
+def single_power_es_random_pair(delta, n,p, sigma, tau, alpha,K=3,linkage="complete", num_trials=500, rng=None):
     if rng is None:
         rng = np.random.default_rng()
     p_values = []
@@ -745,7 +745,7 @@ def single_power_es_random_pair(delta, n,p, sigma, tau, alpha,K=3, num_trials=50
     for _ in range(num_trials):
         trial_count += 1
         X, true_labels, true_means = generate_data_barbers(n_each,delta,sigma, n_clusters=K, true_mean=True, rng=rng)
-        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage="complete", random_state=rng.integers(1e9))
+        model = AgglomerativeClustering(X, tau=tau, n_clusters=K, linkage=linkage, random_state=rng.integers(1e9))
         model.fit()
 
         #idx1, idx2 = np.random.choice(np.arange(3), size=2, replace=False)
@@ -782,18 +782,18 @@ def single_power_es_random_pair(delta, n,p, sigma, tau, alpha,K=3, num_trials=50
 
     return reject, recovery_prob, effect_sizes
 
-def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, K = 3, num_trials=500, seed=None):
+def compute_es_power_random_pair_delta_tau(delta,tau,n,p,sigma, alpha, K = 3, linkage="complete", num_trials=500, seed=None):
     if seed is not None:
         rng = np.random.default_rng(seed)
     else:
         rng = np.random.default_rng()
-    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, K=K, num_trials=num_trials, rng=rng)
+    reject, recovery_prob, effect_sizes = single_power_es_random_pair(delta, n, p, sigma, tau, alpha, K=K, linkage=linkage, num_trials=num_trials, rng=rng)
     return delta, tau, reject, effect_sizes,recovery_prob
 
 def check_power_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.05,
-                                 num_trials=500, K=3, n_jobs=-1, base_seed=0):
+                                 num_trials=500, K=3, linkage = "complete", n_jobs=-1, base_seed=0):
     results = Parallel(n_jobs=n_jobs)(
-        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, K, num_trials,
+        delayed(compute_es_power_random_pair_delta_tau)(delta,tau, n, p, sigma, alpha, K, linkage, num_trials,
                                                         seed=base_seed + i * 100 + j)
         for i, tau in enumerate(tau_list)
         for j, delta in enumerate(deltas)

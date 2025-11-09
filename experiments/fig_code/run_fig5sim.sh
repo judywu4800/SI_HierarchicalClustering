@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=validity_fig5_batch
-#SBATCH --output=../../logs/validity_fig5_%A_%a.log
-#SBATCH --error=../../logs/validity_fig5_%A_%a.err
+#SBATCH --output=../../logs/validity_fig5_%a.log
+#SBATCH --error=../../logs/validity_fig5_%a.err
 #SBATCH --array=0-1
 #SBATCH --time=04:00:00
 #SBATCH --mem=32G
