@@ -304,6 +304,7 @@ get_gao_pval_es <- function(X, true_means, sigma, K, linkage, seed=NULL){
     hcl_at_K <- cutree(hcl,K)
     n1 <- sum(hcl_at_K == k1)
     n2 <- sum(hcl_at_K == k2)
+    size10 <- as.integer(min(n1, n2) >= 10)
 
     c1_idx <- which(hcl_at_K == k1)
     c2_idx <- which(hcl_at_K == k2)
@@ -313,7 +314,7 @@ get_gao_pval_es <- function(X, true_means, sigma, K, linkage, seed=NULL){
                }
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
 
-    return(c(pval,effect))
+    return(c(pval,effect，size10))
 }
 get_gao_pval_es_clustered <- function(X, true_means,sigma,K, linkage, seed=NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)
@@ -781,13 +782,15 @@ get_barber_pval_es <- function(X,true_means,sigma, K, linkage = "complete", seed
   hcl_at_K <- cutree(hcl, K)
   n1 <- sum(hcl_at_K == k1)
   n2 <- sum(hcl_at_K == k2)
+  size10 <- as.integer(min(n1, n2) >= 10)
+
   sigma_hat <- fun_ss_hat_all(X)
   c1_idx <- which(hcl_at_K == k1)
   c2_idx <- which(hcl_at_K == k2)
   effect <- compute_effect_size(true_means, c1_idx, c2_idx, sigma, linkage = linkage)
   if (K==2){ pval <- fun_proposed_exact(X)}
   else {pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]}
-  return(c(pval,effect))
+  return(c(pval,effect,size10))
 }
 
 get_pval_if_recovered_barber <- function(X, clusters_true, linkage = "complete", K=3){

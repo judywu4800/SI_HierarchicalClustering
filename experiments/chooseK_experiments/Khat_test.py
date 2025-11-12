@@ -200,7 +200,7 @@ def one_replication_std(delta,n=30, tau=0.1, total_alpha=0.05,
     # --- Proposed method---
     #alpha_list = np.full(n - 1, total_alpha / (n - 1))
     #alpha_list = generate_alpha_list(n,total_alpha)
-    alpha_list = generate_alpha_list_exp(n, total_alpha, decay_rate=5)
+    alpha_list = generate_alpha_list_exp(n, total_alpha, decay_rate=10)
     #K_hat_F, _, _ = find_best_K_chi(X, sigma = sigma, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
     K_hat_F, _, _, _ = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
     #labels_est = get_labels_at_K(model, max(K_hat_F, 3))

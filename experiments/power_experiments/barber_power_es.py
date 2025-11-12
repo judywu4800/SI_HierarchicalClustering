@@ -39,17 +39,19 @@ def compute_power_barber(n,sigma, K, delta, alpha, linkage, num_trials=10000, rn
     n_each = n//K
     p_values = []
     effect_sizes = []
+    size10s_all = []
     for _ in range(num_trials):
         trial_rng = np.random.default_rng(rng.integers(1e9))
         trial_seed = int(trial_rng.integers(1e9))
         X, true_label, true_means = generate_data_barbers(n_each, delta, sigma, n_clusters=K, true_mean = True, rng=trial_rng)
-        pval, effect = np.array(compute_pval_barber_es(X,true_means, sigma=sigma, K=K, linkage=linkage, seed=trial_seed))
+        pval, effect, size10 = np.array(compute_pval_barber_es(X,true_means, sigma=sigma, K=K, linkage=linkage, seed=trial_seed))
 
-        p_values.append(pval)
-        effect_sizes.append(effect)
+        p_values.append(float(pval))
+        effect_sizes.append(float(effect))
+        size10s_all.append(int(size10))
     #print(p_values)
     rejection = (np.array(p_values) < alpha).astype(int)
-    return rejection, effect_sizes
+    return rejection, effect_sizes, size10s_all
 
 def run_single_delta_barber(n,delta, K, linkage, base_seed=0):
     rng = np.random.default_rng(base_seed + int(delta * 1000))
@@ -80,21 +82,23 @@ if __name__ == "__main__":
     with Pool(processes=num_workers, initializer=init_worker) as pool:
         results_barber = pool.starmap(run_single_delta_barber, [(n,delta, K, linkage) for delta in deltas])
 
-    rejections_all, effect_all = zip(*results_barber)
+    rejections_all, effect_all, size10s_all = zip(*results_barber)
     rejections_all = np.concatenate(rejections_all, axis=0)
     effect_all = np.concatenate(effect_all, axis=0)
+    size10s_all = np.concatenate(size10s_all, axis=0)
 
     df_barber = pd.DataFrame({
         "tau": ["NA"] * len(effect_all),
         "delta": delta_list,
         "effect_size": effect_all,
         "reject": rejections_all,
+        "min_size>=10": size10s_all,
         "method": ["Barber"] * len(effect_all),
         "linkage": [linkage] * len(effect_all)
     })
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results/raw/fig6_barber")
+    output_dir = os.path.join(base_dir, "results/raw/fig6_es")
     os.makedirs(output_dir, exist_ok=True)
 
     csv_path = os.path.join(output_dir, f"rejection_es_barber_K{K}_{linkage}.csv")

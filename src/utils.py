@@ -987,6 +987,10 @@ def check_power_es_single_tau_fast(n, sigma, tau, deltas, alpha=0.05,
 
         effect_size = compute_es(true_means, c1_points, c2_points, sigma, linkage)
 
+        n1 = len(c1_points)
+        n2 = len(c2_points)
+        size10 =  int(min(n1, n2) >= 10)
+
         idx = np.concatenate([c1_points, c2_points])
         unique_labels = np.unique(true_labels[idx])
         non_alt = len(unique_labels) == 1
@@ -997,7 +1001,7 @@ def check_power_es_single_tau_fast(n, sigma, tau, deltas, alpha=0.05,
         reject = int(p_val < alpha)
         recovered = 0 if non_alt else 1
 
-        return reject, effect_size, recovered
+        return reject, effect_size, recovered, size10
 
     # -------------------------------
     # Loop over all deltas (parallel inside each)
@@ -1007,12 +1011,13 @@ def check_power_es_single_tau_fast(n, sigma, tau, deltas, alpha=0.05,
         results = Parallel(n_jobs=n_jobs, backend="loky")(
             delayed(one_trial)(delta, s) for s in seeds
         )
-        rejects, effects, recovs = zip(*results)
+        rejects, effects, recovs, size10s = zip(*results)
         df = pd.DataFrame({
             "tau": [tau] * num_trials,
             "delta": [delta] * num_trials,
             "effect_size": effects,
             "reject": rejects,
+            "min_size>=10": size10s,
             "method": ["Randomized"] * num_trials
         })
         df["recovery_prob"] = np.mean(recovs)
