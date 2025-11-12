@@ -22,7 +22,7 @@ if __name__ == "__main__":
     tau_list = 0.1
     deltas = np.linspace(5, 20, 9)
     alpha = 0.05
-    num_trials = 2000
+    num_trials = 2
     K = 3
     n_jobs = -1
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     # ---- output ----
     base_dir = os.path.abspath(os.path.join(SCRIPT_DIR, "../.."))
-    output_dir = os.path.join(base_dir, "results/raw/fig6")
+    output_dir = os.path.join(base_dir, "results/raw/fig6_es")
     os.makedirs(output_dir, exist_ok=True)
 
     csv_path = os.path.join(output_dir, f"reject_effect_size_K{K}_{linkage}.csv")

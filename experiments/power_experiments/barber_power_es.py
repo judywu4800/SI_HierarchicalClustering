@@ -21,16 +21,17 @@ logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
 def init_worker():
     ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
     #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
-def compute_pval_barber_es(X,true_means, K=3, linkage = "complete",seed=None):
+def compute_pval_barber_es(X,true_means, sigma = 1, K=3, linkage = "complete",seed=None):
     ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
     #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
     with localconverter(default_converter + numpy2ri.converter):
         ro.globalenv['X'] = ro.conversion.py2rpy(X)
         ro.globalenv['true_mean_py'] = ro.conversion.py2rpy(true_means)
     ro.globalenv['K_py'] = K
+    ro.globalenv['sigma_py'] = sigma
     ro.globalenv['link_py'] = linkage
     ro.globalenv['seed'] = int(seed)
-    result = ro.r("get_barber_pval_es(X,true_mean_py, K_py, link_py,seed)")
+    result = ro.r("get_barber_pval_es(X,true_mean_py, sigma_py, K_py, link_py,seed)")
     return result
 def compute_power_barber(n,sigma, K, delta, alpha, linkage, num_trials=10000, rng=None):
     if rng is None:
@@ -42,7 +43,7 @@ def compute_power_barber(n,sigma, K, delta, alpha, linkage, num_trials=10000, rn
         trial_rng = np.random.default_rng(rng.integers(1e9))
         trial_seed = int(trial_rng.integers(1e9))
         X, true_label, true_means = generate_data_barbers(n_each, delta, sigma, n_clusters=K, true_mean = True, rng=trial_rng)
-        pval, effect = np.array(compute_pval_barber_es(X,true_means, K=K, linkage=linkage, seed=trial_seed))
+        pval, effect = np.array(compute_pval_barber_es(X,true_means, sigma=sigma, K=K, linkage=linkage, seed=trial_seed))
 
         p_values.append(pval)
         effect_sizes.append(effect)

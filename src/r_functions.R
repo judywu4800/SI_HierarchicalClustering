@@ -295,7 +295,7 @@ compute_effect_size <- function(true_means, c1_idx, c2_idx, sigma, linkage = "co
   return(effect_size)
 }
 
-get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
+get_gao_pval_es <- function(X, true_means, sigma, K, linkage, seed=NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     k1 <- 1
@@ -315,7 +315,7 @@ get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
 
     return(c(pval,effect))
 }
-get_gao_pval_es_clustered <- function(X, true_means,K, linkage, seed=NULL){
+get_gao_pval_es_clustered <- function(X, true_means,sigma,K, linkage, seed=NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
     k1 <- 1
@@ -773,7 +773,7 @@ run_barber_type1_parallel <- function(n, p, sigma,
   return(df)
 }
 
-get_barber_pval_es <- function(X,true_means, K, linkage = "complete", seed=NULL){
+get_barber_pval_es <- function(X,true_means,sigma, K, linkage = "complete", seed=NULL){
   if (!missing(seed) && !is.null(seed)) set.seed(seed)
   hcl <- hclust(dist(X)^2, method = linkage)
   k1 <- 1

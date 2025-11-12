@@ -16,6 +16,16 @@ def generate_alpha_list(n=30, total_alpha=0.05, seed=0):
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
     return alpha_list
 
+import numpy as np
+
+import numpy as np
+
+def generate_alpha_list_exp(n=30, total_alpha=0.05, decay_rate=1):
+    length = n - 1
+    i = np.arange(length)
+    alpha_raw = np.exp(-decay_rate * i)
+    alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
+    return alpha_list
 
 def get_labels_at_K(model, K):
     for winning_pair, clusters in model.existing_clusters_log.items():
@@ -26,7 +36,7 @@ def get_labels_at_K(model, K):
                     labels[idx] = cid
             return labels
     raise ValueError(f"No step found with {K} clusters")
-def find_best_K_F(X, tau, alpha_list, n_threshold=0.5, linkage="complete", total_alpha=0.05, rng = None):
+def find_best_K_F(X, tau, alpha_list, n_threshold=25, linkage="complete", total_alpha=0.05, rng = None):
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
         raise ValueError(
@@ -53,19 +63,19 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=0.5, linkage="complete", total
         node = node1.parent
         n1 = len(node1.points)
         n2 = len(node2.points)
-        if (1 / n1 + 1 / n2) >= n_threshold:
+        if min(n1, n2) <= n_threshold:
             alpha = np.min(alpha_list)  # more conservative for smaller clusters
             idx = np.argmin(alpha_list)
 
             if (n1 + n2) == 2:
                 pval = 1  # F distribution method cannot handle the case when n1+n2=2
             else:
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=200, ncoarse=30, ngrid=1000)
+                pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=30, ngrid=1000)
 
         else:
             alpha = np.max(alpha_list)  # More power for larger clusters
             idx = np.argmax(alpha_list)
-            pval, _, _ = model.merge_inference_F_grid(node, grid_width=200, ncoarse=30, ngrid=1000)
+            pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=30, ngrid=1000)
         alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)
