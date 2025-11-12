@@ -23,7 +23,6 @@ if __name__ == "__main__":
     deltas = np.linspace(5, 20, 9)
     alpha = 0.05
     num_trials = 2
-    K = 3
     n_jobs = -1
 
     # ---- parse linkage argument ----
@@ -32,8 +31,13 @@ if __name__ == "__main__":
     else:
         linkage = os.getenv("LINKAGE", "complete")
 
+    if len(sys.argv) > 2:
+        K = int(sys.argv[2])
+    else:
+        K = int(os.getenv("K", 3))
+
     print("=" * 60)
-    print(f"Running fig6_randomized.py for linkage = {linkage}")
+    print(f"Running fig6_randomized.py for linkage = {linkage}, K = {K}")
     print(f"Current working dir: {os.getcwd()}")
     print(f"Source dir: {SRC_DIR}")
     print("=" * 60)
