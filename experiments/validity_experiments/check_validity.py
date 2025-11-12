@@ -12,9 +12,8 @@ if __name__ == "__main__":
     p = 10
     sigma = 1.0
     K = 3
-    tau_list = [0.025,0.05,0.1,0.25,0.5,1,5]
-    #tau_list = [0.01]
-    layer = -1
+    #tau_list = [0.025,0.05,0.1,0.25,0.5,1,5]
+    tau_list = [0.1]
     linkage = "complete"
     num_trials = 1000
     n_jobs = -1

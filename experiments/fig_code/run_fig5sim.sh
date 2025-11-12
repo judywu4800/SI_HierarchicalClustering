@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=validity_fig5_batch
-#SBATCH --output=../../logs/validity_fig5_%a.log
-#SBATCH --error=../../logs/validity_fig5_%a.err
+#SBATCH --output=../../logs/fig5_all/validity_fig5_%a.log
+#SBATCH --error=../../logs/fig5_all/validity_fig5_%a.err
 #SBATCH --array=0-1
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
 

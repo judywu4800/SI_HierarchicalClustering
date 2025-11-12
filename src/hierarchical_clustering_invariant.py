@@ -436,7 +436,6 @@ class AgglomerativeClustering:
         centroid_new = np.mean(data_new_node, axis=0)
         centroid_cluster = np.mean(data_cluster, axis=0)
 
-        # Weighted linkage uses equal weight for each cluster (not point)
         dist = self._calculate_distance(centroid_new, centroid_cluster)
         return float(dist)
 

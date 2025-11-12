@@ -313,6 +313,56 @@ def check_p_value_uniformity_multi_tau_random_pair_parallel(n, p, sigma, K, tau_
     naive_p_values = np.array(naive_p_values)
 
     return all_p_values, naive_p_values
+
+def check_p_value_uniformity_single_tau_parallel(
+        n, p, sigma, K, tau,
+        linkage="complete",
+        num_trials=1000,
+        n_jobs=-1,
+        seed=42):
+    main_rng = np.random.default_rng(seed)
+    rng_list = main_rng.spawn(num_trials)
+
+    def one_trial(random_state):
+        rng = np.random.default_rng(random_state)
+        X = generate_null_data(n, p, np.zeros(p), sigma, rng=rng)
+
+        res = {"naive": np.nan, "pval": np.nan}
+        try:
+            # naive p-value
+            res["naive"] = naive_p_value_random_pair(X, K, linkage)
+
+            # randomized clustering
+            model = AgglomerativeClustering(
+                X, tau=tau, n_clusters=K, linkage=linkage, random_state=random_state
+            )
+            model.fit()
+
+            c1, c2 = model.K_clusters[0], model.K_clusters[1]
+            if min(len(c1), len(c2)) <= 2:
+                return res
+
+            p_val, _, _ = model.merge_inference_F_random_pair_grid(
+                c1, c2, grid_width=120, ncoarse=20, ngrid=2000
+            )
+            res["pval"] = p_val
+        except Exception as e:
+            # skip failed trials safely
+            res["pval"] = np.nan
+        return res
+
+    # --- run in parallel ---
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(one_trial)(rng_list[i].integers(0, 2**32 - 1))
+        for i in range(num_trials)
+    )
+
+    pvals = np.array([r["pval"] for r in results])
+    naive_pvals = np.array([r["naive"] for r in results])
+
+
+    return pvals, naive_pvals
+
 def single_repeat(tau, label, n, p, sigma, K, layer, alpha, num_trials):
     mu = np.zeros(p)
     p_values = []
@@ -883,3 +933,90 @@ def check_es_multi_tau_delta_random_pair(n, p, sigma, tau_list, deltas, alpha=0.
 
     return(final_df)
 
+
+def check_power_es_single_tau_fast(n, sigma, tau, deltas, alpha=0.05,
+                                   num_trials=500, K=3, linkage="complete",
+                                   n_jobs=-1, base_seed=0):
+    """
+    Efficient power/effect size simulation for a single tau value across multiple deltas.
+    Parallelizes across trials for each delta.
+    """
+
+    rng = np.random.default_rng(base_seed)
+    all_dfs = []
+
+    def compute_es(true_mean,c1_points, c2_points, sigma, linkage):
+        from scipy.spatial.distance import cdist
+        X1 = true_mean[c1_points]
+        X2 = true_mean[c2_points]
+        dists = cdist(X1, X2, metric='euclidean')
+        if linkage == "single":
+            dist = np.min(dists)
+        elif linkage == "complete":
+            dist = np.max(dists)
+        elif linkage == "average":
+            dist = np.mean(dists)
+        elif linkage == "centroid":
+            mean1 = np.mean(X1, axis=0)
+            mean2 = np.mean(X2, axis=0)
+            dist = np.linalg.norm(mean1 - mean2)
+        elif linkage == "minimax":
+            all_points = np.vstack([X1, X2])
+            pairwise = cdist(all_points, all_points, metric="euclidean")
+            radii = np.max(pairwise, axis=1)
+            dist = np.min(radii)
+        else:
+            raise ValueError(f"Unsupported linkage type: {linkage}")
+
+        effect_size = dist / sigma
+        return effect_size
+
+    def one_trial(delta, seed):
+        local_rng = np.random.default_rng(seed)
+        X, true_labels, true_means = generate_data_barbers(
+            n // K, delta, sigma, n_clusters=K, true_mean=True, rng=local_rng
+        )
+        model = AgglomerativeClustering(
+            X, tau=tau, n_clusters=K, linkage=linkage,
+            random_state=local_rng.integers(1e9)
+        )
+        model.fit()
+
+        c1, c2 = model.K_clusters[0], model.K_clusters[1]
+        c1_points, c2_points = c1.points, c2.points
+
+        effect_size = compute_es(true_means, c1_points, c2_points, sigma, linkage)
+
+        idx = np.concatenate([c1_points, c2_points])
+        unique_labels = np.unique(true_labels[idx])
+        non_alt = len(unique_labels) == 1
+
+        p_val, _, _ = model.merge_inference_F_random_pair_grid(
+            c1, c2, grid_width=250, ncoarse=30, ngrid=1000
+        )
+        reject = int(p_val < alpha)
+        recovered = 0 if non_alt else 1
+
+        return reject, effect_size, recovered
+
+    # -------------------------------
+    # Loop over all deltas (parallel inside each)
+    # -------------------------------
+    for j, delta in enumerate(deltas):
+        seeds = rng.integers(1e9, size=num_trials)
+        results = Parallel(n_jobs=n_jobs, backend="loky")(
+            delayed(one_trial)(delta, s) for s in seeds
+        )
+        rejects, effects, recovs = zip(*results)
+        df = pd.DataFrame({
+            "tau": [tau] * num_trials,
+            "delta": [delta] * num_trials,
+            "effect_size": effects,
+            "reject": rejects,
+            "method": ["Randomized"] * num_trials
+        })
+        df["recovery_prob"] = np.mean(recovs)
+        all_dfs.append(df)
+
+    final_df = pd.concat(all_dfs, ignore_index=True)
+    return final_df

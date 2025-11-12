@@ -110,10 +110,12 @@ check_gao_uniformity_R <- function(
       }, error = function(e) NA)
     }
 
-    pvals[is.finite(pvals)]
+    pvals[!is.finite(pvals)] <- NA
+    return(pvals)
   }
 
   results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
   pvals <- unlist(results)
   return(pvals)
 }
@@ -179,8 +181,10 @@ check_gao_clustered_uniformity_R <- function(
   set.seed(seed_master)
   repeat_seeds <- sample.int(1e8, num_repeats)
 
-    one_repeat <- function(i) {
-        set.seed(repeat_seeds[i])
+  all_pvals <- vector("list", num_repeats)
+
+  for (i in seq_len(num_repeats)) {
+    set.seed(repeat_seeds[i])
     trial_seeds <- sample.int(1e8, num_trials)
 
     pvals <- numeric(num_trials)
@@ -192,15 +196,11 @@ check_gao_clustered_uniformity_R <- function(
       }, error = function(e) NA)
     }
 
-    pvals[is.finite(pvals)]
+    pvals[!is.finite(pvals)] <- NA
+    all_pvals[[i]] <- pvals
   }
 
-  # ---- parallel execution ----
-  results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
-
-  # ---- combine ----
-  pvals <- unlist(results)
-  return(pvals)
+  return(unlist(all_pvals))
 }
 
 run_gao_type1_clustered_parallel <- function(n, p, sigma,
@@ -245,6 +245,56 @@ run_gao_type1_clustered_parallel <- function(n, p, sigma,
   return(df)
 }
 
+compute_effect_size <- function(true_means, c1_idx, c2_idx, sigma, linkage = "complete") {
+  # subset cluster points
+  true_means <- as.matrix(true_means)
+  X1 <- true_means[c1_idx, , drop = FALSE]
+  X2 <- true_means[c2_idx, , drop = FALSE]
+
+  # compute pairwise distances
+  dists <- as.matrix(dist(rbind(X1, X2), method = "euclidean"))
+  n1 <- nrow(X1)
+  n2 <- nrow(X2)
+
+  # distances only between clusters
+  cross_dists <- dists[1:n1, (n1 + 1):(n1 + n2), drop = FALSE]
+
+  # select linkage rule
+  if (linkage == "single") {
+    dist_val <- min(cross_dists)
+
+  } else if (linkage == "complete") {
+    dist_val <- max(cross_dists)
+
+  } else if (linkage == "average") {
+    dist_val <- mean(cross_dists)
+
+  } else if (linkage == "centroid") {
+    mu1 <- colMeans(X1)
+    mu2 <- colMeans(X2)
+    dist_val <- sqrt(sum((mu1 - mu2)^2))
+
+  } else if (linkage == "ward") {
+    mu1 <- colMeans(X1)
+    mu2 <- colMeans(X2)
+    dist_val <- sqrt((n1 * n2) / (n1 + n2)) * sqrt(sum((mu1 - mu2)^2))
+
+  } else if (linkage == "minimax") {
+    # combine both clusters
+    all_points <- rbind(X1, X2)
+    all_dists <- as.matrix(dist(all_points))
+    radii <- apply(all_dists, 1, max)
+    dist_val <- min(radii)
+
+  } else {
+    stop(paste("Unsupported linkage:", linkage))
+  }
+
+  # normalize by sigma
+  effect_size <- dist_val / sigma
+  return(effect_size)
+}
+
 get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)
     hcl <- hclust(dist(X, method="euclidean")^2, method=linkage)
@@ -255,11 +305,9 @@ get_gao_pval_es <- function(X, true_means,K, linkage, seed=NULL){
     n1 <- sum(hcl_at_K == k1)
     n2 <- sum(hcl_at_K == k2)
 
-    sigma_hat <- fun_ss_hat_all(X)
-    mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
-    mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
-
-    effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_hat)
+    c1_idx <- which(hcl_at_K == k1)
+    c2_idx <- which(hcl_at_K == k2)
+    effect <- compute_effect_size(true_means, c1_idx, c2_idx, sigma, linkage = linkage)
 
     if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl)$pval
                }
@@ -278,12 +326,9 @@ get_gao_pval_es_clustered <- function(X, true_means,K, linkage, seed=NULL){
     n2 <- sum(hcl_at_K == k2)
 
     sigma_clustered <- fun_ss_hat_clustered(X,hcl_at_K, K)
-    sigma_all <- fun_ss_hat_all(X)
-    mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
-    mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
-
-    effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_all)
-
+    c1_idx <- which(hcl_at_K == k1)
+    c2_idx <- which(hcl_at_K == k2)
+    effect <- compute_effect_size(true_means, c1_idx, c2_idx, sigma, linkage = linkage)
 
     if(linkage == "complete") {pval <- test_complete_hier_clusters_approx(X, K=3, k1=1, k2=2, ndraws=10000, hcl=hcl, sig = sqrt(sigma_clustered))$pval
                }
@@ -617,6 +662,14 @@ fun_proposed_approx = function(X, K, k1, k2, ndraws, alpha, method) {
   vec_h2 = rep(0, ndraws)
   for (j in 1:ndraws) {
     samp_cur = samp[j]
+      if (is.na(samp_cur) || samp_cur <= 0 || samp_cur >= 1) {
+    next }
+
+  y = t1 * sqrt(samp_cur) * t2 + t1 * sqrt(1 - samp_cur) * t3 + P2 %*% X
+
+  if (any(!is.finite(y))) {
+    next
+  }
     y = t1 * sqrt(samp_cur) * t2 + t1 * sqrt(1 - samp_cur) * t3 + P2 %*% X
     hc_y = hclust(dist(y) ** 2, method = method)
     cl_y = cutree(hc_y, K)
@@ -671,14 +724,15 @@ check_barber_uniformity_R <- function(
       }, error = function(e) NA)
     }
 
-    pvals[is.finite(pvals)]
+    pvals[!is.finite(pvals)] <- NA
+    return(pvals)
   }
 
   results <- parallel::mclapply(1:num_repeats, one_repeat, mc.cores = n_jobs)
+
   pvals <- unlist(results)
   return(pvals)
 }
-
 run_barber_type1_parallel <- function(n, p, sigma,
                                       K = 3, alpha = 0.05,
                                       num_trials = 200,
@@ -728,9 +782,9 @@ get_barber_pval_es <- function(X,true_means, K, linkage = "complete", seed=NULL)
   n1 <- sum(hcl_at_K == k1)
   n2 <- sum(hcl_at_K == k2)
   sigma_hat <- fun_ss_hat_all(X)
-  mu1 <- colMeans(true_means[hcl_at_K == k1, , drop = FALSE], na.rm = TRUE)
-  mu2 <- colMeans(true_means[hcl_at_K == k2, , drop = FALSE], na.rm = TRUE)
-  effect <- sqrt(sum((mu1 - mu2)^2)) / sqrt(sigma_hat)
+  c1_idx <- which(hcl_at_K == k1)
+  c2_idx <- which(hcl_at_K == k2)
+  effect <- compute_effect_size(true_means, c1_idx, c2_idx, sigma, linkage = linkage)
   if (K==2){ pval <- fun_proposed_exact(X)}
   else {pval <- fun_proposed_approx(X, K, 1, 2, ndraws=8000, alpha=0.05, method= linkage)[1]}
   return(c(pval,effect))

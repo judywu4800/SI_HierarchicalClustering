@@ -25,11 +25,15 @@ def run_randomized_pvals(n, p, sigma, K, tau, linkage_list, num_trials=1000, n_j
 
     for linkage in linkage_list:
         print(f"\n[Randomized] K={K}, linkage={linkage}, tau={tau}")
-        all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_random_pair_parallel(
-            n, p, sigma, K, [tau], linkage, num_trials, n_jobs
+        pvals, naive_pvals = check_p_value_uniformity_single_tau_parallel(
+            n, p, sigma, K, tau, linkage, num_trials=num_trials, n_jobs=n_jobs
         )
-        df = pd.DataFrame({f"tau={tau}": all_p_values[tau]})
-        df["naive"] = naive_p_values
+
+        df = pd.DataFrame({
+            f"tau={tau}": pvals,
+            "naive": naive_pvals
+        })
+
         outpath = os.path.join(output_dir, f"pval_validity_randomized_K{K}_{linkage}.csv")
         df.to_csv(outpath, index=False)
 
@@ -47,15 +51,20 @@ def run_gao_barber_pvals(n, p, sigma, K, linkage_list, num_trials=1000):
         ro.globalenv['K_py'] = K
         ro.globalenv['link_py'] = linkage
         ro.globalenv['num_trials_py'] = num_trials
+        import numpy as np
 
         pvals_gao = ro.r("check_gao_uniformity_R(n_py, p_py, sigma_py, K_py, link_py, num_trials_py)")
         pvals_gao_c = ro.r("check_gao_clustered_uniformity_R(n_py, p_py, sigma_py, K_py, link_py, num_trials_py)")
         pvals_barber = ro.r("check_barber_uniformity_R(n_py, p_py, sigma_py, K_py, link_py, num_trials_py)")
+        max_len = max(len(pvals_gao), len(pvals_gao_c), len(pvals_barber))
+
+        def pad(arr, length):
+            return np.pad(arr, (0, length - len(arr)), constant_values=np.nan)
 
         df = pd.DataFrame({
-            "Gao (sigma_all)": np.array(pvals_gao),
-            "Gao (sigma_clustered)": np.array(pvals_gao_c),
-            "Barber": np.array(pvals_barber)
+            "Gao (sigma_all)": pad(np.array(pvals_gao), max_len),
+            "Gao (sigma_clustered)": pad(np.array(pvals_gao_c), max_len),
+            "Barber": pad(np.array(pvals_barber), max_len),
         })
         outpath = os.path.join(output_dir, f"pval_valid_gao&barber_K{K}_{linkage}.csv")
         df.to_csv(outpath, index=False)
@@ -71,7 +80,7 @@ if __name__ == "__main__":
     random.seed(0)
     np.random.seed(0)
     n, p, sigma = 30, 10, 1.0
-    num_trials = 100
+    num_trials = 20
     n_jobs = -1
 
     randomized_linkages = ["complete", "single", "average", "minimax"]

@@ -35,7 +35,7 @@ if __name__ == "__main__":
     for row, K in enumerate(Ks):
         # ---- Load data ----
         df = pd.read_csv(f"../results/raw/pval_validity_randomized_K{K}.csv")
-        type1 = pd.read_csv(f"../results/raw/type1_error_randomized.csv")
+        type1 = pd.read_csv(f"../results/raw/type1_error_randomized_K{K}.csv")
 
         tau_cols = [c for c in df.columns if c.startswith('tau=')]
         naive = df['naive'].dropna().to_numpy()

@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=power_gao_c
-#SBATCH --output=../../logs/power/power_gao_c_output.log
-#SBATCH --error=../../logs/power/power_gao_c_%a.err
-#SBATCH --array=0-1
-#SBATCH --time=03:00:00
+#SBATCH --job-name=validity
+#SBATCH --output=../../logs/validity/validity_output.log
+#SBATCH --error=../../logs/validity/validity_%a.err
+#SBATCH --array=0-3
+#SBATCH --time=02:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
 
-linkage_list=("single" "average")
+linkage_list=("single" "average" "complete" "minimax")
 linkage=${linkage_list[$SLURM_ARRAY_TASK_ID]}
 
 module purge
@@ -28,13 +28,13 @@ mkdir -p results
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
 echo "============================================="
-echo " Running Gao clustered ES linkage=$linkage"
+echo " Running validity simulations linkage=$linkage"
 echo " SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 echo "============================================="
 
-python experiments/power_experiments/gao_power_es_clustered.py \
+python experiments/validity_experiments/validity_linkages.py \
     --linkage $linkage \
-    --K 2 \
+    --K 3 \
     --num_trials 2000
 
 echo "Done linkage=$linkage at $(date)"

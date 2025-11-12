@@ -135,11 +135,11 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=0.5, linkage="complete", total
             if (n1 + n2) == 2:
                 pval = 1  # edge case
             else:
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=180, ncoarse=30, ngrid=1000)
+                pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=20, ngrid=1000)
         else:
             alpha = np.max(alpha_list)  # more power for larger clusters
             idx = np.argmax(alpha_list)
-            pval, _, _ = model.merge_inference_F_grid(node, grid_width=180, ncoarse=30, ngrid=1000)
+            pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=20, ngrid=1000)
 
         alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
@@ -234,16 +234,16 @@ def one_replication_std(delta,n=30, tau=0.1, total_alpha=0.05,
     #X, labels = generate_3cluster_data(30,5,delta, 1)
     #X, labels = generate_3cluster_data_varsize(n= n, p=30,delta=delta, sigma = 1.0, cluster_sizes=[10,10,10])
     p = 2
-    #sigma = generate_random_covariance(p, random_state= 42)
+    sigma = generate_random_covariance(p, random_state= 42)
     #np.save(f"sigma_delta{delta}_p{p}.npy", sigma)
-    sigma = 1
+    #sigma = 1
     X, labels = generate_3cluster_data_varsize(n=30, p=p, delta=delta, sigma=sigma,
-                                   cluster_sizes=[10,10,10], return_labels=True)
+                                   cluster_sizes=[20,8,2], return_labels=True)
     # --- Proposed method---
     #alpha_list = np.full(n - 1, total_alpha / (n - 1))
     alpha_list = generate_alpha_list(n,total_alpha)
-    #K_hat_F, _, _ = find_best_K_chi(X, sigma = sigma, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
-    K_hat_F, _, _, _ = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
+    K_hat_F, _, _ = find_best_K_chi(X, sigma = sigma, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
+    #K_hat_F, _, _, _ = find_best_K_F(X, tau=tau, alpha_list=alpha_list, total_alpha=total_alpha)
     #labels_est = get_labels_at_K(model, max(K_hat_F, 3))
     #preserve = check_preserve(labels, labels_est)
 
@@ -277,13 +277,15 @@ if __name__ == "__main__":
     delta_list = [6,8,10,12,14]
     n = 30
     p = 2
+    equisized = False
+    iso = False
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results", f"k_hat_boxplot_ES_Iso_{timestamp}_n={n}_p={p}")
+    output_dir = os.path.join(base_dir, "results/k_hat", f"k_hat_boxplot_n={n}_p={p}_equi{equisized}_iso{iso}")
     os.makedirs("results", exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    results = simulate_results_std(delta_list, n_rep=100, n_jobs=-1)
+    results = simulate_results_std(delta_list, n_rep=50, n_jobs=-1)
     rows = []
     for sd, result in results.items():
         for kf, kg in zip(result["Proposed Method"], result["Gap Test"]):
