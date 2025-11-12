@@ -64,24 +64,20 @@ def run_single_delta_gao(n,delta, K, linkage, base_seed=0):
 
 if __name__ == "__main__":
     import argparse
-    '''
     parser = argparse.ArgumentParser()
     parser.add_argument("--linkage", type=str, required=True, choices=["single", "average","complete"])
     parser.add_argument("--K", type=int, default=3)
     parser.add_argument("--num_trials", type=int, default=2000)
     args = parser.parse_args()
-    K = args.K
-    linkage = args.linkage
-    n_trials = args.num_trials
-    '''
 
 
     random.seed(0)
     np.random.seed(0)
-    K=3
-    n_trials = 2000
+    
     n=30
-    linkage="complete"
+    K = args.K
+    linkage = args.linkage
+    n_trials = args.num_trials
 
     deltas = np.linspace(5, 20, 9)
     delta_list = np.repeat(deltas, n_trials)
