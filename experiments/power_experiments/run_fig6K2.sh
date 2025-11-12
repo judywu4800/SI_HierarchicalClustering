@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=fig6_randomized_batch
-#SBATCH --output=../../logs/fig6/fig6_randomized_%a.log
-#SBATCH --error=../../logs/fig6/fig6_randomized_%a.err
+#SBATCH --job-name=fig6_randomizedK2_batch
+#SBATCH --output=../../logs/fig6/fig6_randomizedK2_%a.log
+#SBATCH --error=../../logs/fig6/fig6_randomizedK2_%a.err
 #SBATCH --array=0-3
 #SBATCH --time=06:00:00
 #SBATCH --mem=32G
@@ -40,6 +40,6 @@ echo "PYTHONPATH set to: $PYTHONPATH"
 echo "============================================="
 
 # ==== Run experiment for this linkage ====
-python experiments/power_experiments/fig6_randomized.py "$LINKAGE"
+python experiments/power_experiments/fig6_rand_K2.py "$LINKAGE"
 
 echo "Done for LINKAGE=$LINKAGE at $(date)"

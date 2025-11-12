@@ -2,7 +2,7 @@
 #SBATCH --job-name=power_gao
 #SBATCH --output=../../logs/power/power_gao_output.log
 #SBATCH --error=../../logs/power/power_gao_%a.err
-#SBATCH --array=0-1
+#SBATCH --array=0-2
 #SBATCH --time=03:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
@@ -34,7 +34,7 @@ echo "============================================="
 
 python experiments/power_experiments/gao_power_es.py \
     --linkage $linkage \
-    --K 3 \
+    --K 2 \
     --num_trials 2000
 
 echo "Done linkage=$linkage at $(date)"
