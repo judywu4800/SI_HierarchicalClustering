@@ -314,7 +314,7 @@ get_gao_pval_es <- function(X, true_means, sigma, K, linkage, seed=NULL){
                }
     else { pval <- test_hier_clusters_exact(X, link=linkage, K=3, k1=1, k2=2, hcl=hcl)$pval}
 
-    return(c(pval,effect，size10))
+    return(c(pval,effect,size10))
 }
 get_gao_pval_es_clustered <- function(X, true_means,sigma,K, linkage, seed=NULL){
     if (!missing(seed) && !is.null(seed)) set.seed(seed)

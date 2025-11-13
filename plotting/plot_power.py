@@ -14,10 +14,12 @@ if __name__ == "__main__":
     #dfgc = pd.read_csv("../results/raw/rejection_and_effect_gao_clustered.csv")
     #dfb = pd.read_csv("../results/raw/rejection_and_effect_barber.csv")
     #dfr = pd.read_csv("../results/raw/reject_es-6.csv")
-    dfg = pd.read_csv("../results/raw/rejection_es_gao_K2.csv")
-    dfgc = pd.read_csv("../results/raw/rejection_es_gao_clustered_K2.csv")
-    dfb = pd.read_csv("../results/raw/rejection_es_barber_K2.csv")
-    dfr = pd.read_csv("../results/raw/reject_effect_size_K2.csv")
+    linkage = "average"
+    K=2
+    dfg = pd.read_csv(f"../results/raw/fig6_es2/rejection_es_gao_K{K}_{linkage}.csv")
+    #dfgc = pd.read_csv("../results/raw/fig6_es/rejection_es_gao_clustered_K2.csv")
+    dfb = pd.read_csv(f"../results/raw/fig6_es2/rejection_es_barber_K{K}_{linkage}.csv")
+    dfr = pd.read_csv(f"../results/raw/fig6_es2/reject_effect_size_K{K}_{linkage}.csv")
 
 
 
@@ -86,18 +88,7 @@ if __name__ == "__main__":
             label=f"RAC({tau})"
         )
 
-    bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
-        dfgc, xcol="effect_size", ycol="reject",
-        x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
-        alpha=alpha
-    )
-    if len(bx) > 0:
-        plt.errorbar(
-            bx, by, yerr=[by - lower, upper - by],
-            fmt='s--', capsize=4,
-            color='red',
-            label="Gao et al. (sigma_clustered)"
-        )
+
     bx, by, lower, upper, bc = binned_empirical_power_with_ci_normal(
         dfg, xcol="effect_size", ycol="reject",
         x_min=x_min, x_max=x_max, n_bins=n_bins, min_count=3,
@@ -129,9 +120,9 @@ if __name__ == "__main__":
     plt.legend(title="Method / Tau")
     plt.grid(True, linestyle="--", alpha=0.4)
     plt.xlim(x_min, x_max)
-    plt.ylim(-0.01, 1)
+    plt.ylim(-0.01, 1.05)
     plt.tight_layout()
 
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, "power_vs_effectsize_K2.png"))
-    plt.close()
+    #plt.savefig(os.path.join(output_dir, "power_vs_effectsize_K2.png"))
+    plt.show()

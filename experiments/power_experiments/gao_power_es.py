@@ -73,13 +73,13 @@ if __name__ == "__main__":
 
     random.seed(0)
     np.random.seed(0)
-    
+
     n=30
     K = args.K
     linkage = args.linkage
     n_trials = args.num_trials
 
-    deltas = np.linspace(5, 20, 9)
+    deltas = np.linspace(1, 10, 9)
     delta_list = np.repeat(deltas, n_trials)
     alpha = 0.05
     num_workers = os.cpu_count()

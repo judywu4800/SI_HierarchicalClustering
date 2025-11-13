@@ -6,21 +6,25 @@ import random
 
 if __name__ == "__main__":
     import os
-    random.seed(0)
-    np.random.seed(0)
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--K", type=int, required=True)
+    args = parser.parse_args()
+
     n = 30
     p = 10
     sigma = 1.0
-    K = 3
-    #tau_list = [0.025,0.05,0.1,0.25,0.5,1,5]
-    tau_list = [0.1]
+    K = args.K
+    tau_list = [0.025, 0.05, 0.1, 0.25, 0.5, 1, 5]
     linkage = "complete"
-    num_trials = 1000
+    num_trials = 2000
     n_jobs = -1
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw")
     os.makedirs(output_dir, exist_ok=True)
+
 
     all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_random_pair_parallel(
         n, p, sigma, K, tau_list, linkage, num_trials, n_jobs
@@ -28,4 +32,6 @@ if __name__ == "__main__":
 
     df = pd.DataFrame({f"tau={tau}": all_p_values[tau] for tau in tau_list})
     df["naive"] = naive_p_values
-    df.to_csv(os.path.join(output_dir, f"pval_validity_randomized_K{K}.csv"), index=False)
+    csv_path = os.path.join(output_dir, f"pval_validity_randomized_K{K}.csv")
+    df.to_csv(csv_path, index=False)
+    print(f"Saved results to {csv_path}")

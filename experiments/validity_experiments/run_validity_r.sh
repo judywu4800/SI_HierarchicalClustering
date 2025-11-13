@@ -1,9 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=validity_test
-#SBATCH --output=../../logs/validity_output.log
-#SBATCH --time=01:00:00
+#SBATCH --job-name=validity_K
+#SBATCH --output=../../logs/validity_K%a.out
+#SBATCH --error=../../logs/validity_K%a.err
+#SBATCH --array=0-1
+#SBATCH --time=02:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=32
+
+K_VALUES=(2 3)
+K=${K_VALUES[$SLURM_ARRAY_TASK_ID]}
 
 
 module purge
@@ -16,5 +21,15 @@ mkdir -p results
 
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
-python experiments/validity_experiments/check_validity.py
 
+NEW_NAME="validity_K${K}"
+scontrol update JobID=$SLURM_JOB_ID JobName=$NEW_NAME
+
+echo "============================================="
+echo "  Running validity check for K=$K"
+echo "  SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
+echo "============================================="
+
+python experiments/validity_experiments/check_validity.py --K "$K"
+
+echo "Job completed for K=$K at $(date)"

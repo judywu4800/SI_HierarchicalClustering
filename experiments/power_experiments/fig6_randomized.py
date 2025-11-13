@@ -20,7 +20,7 @@ if __name__ == "__main__":
     p = 2
     sigma = 1
     tau_list = 0.1
-    deltas = np.linspace(5, 20, 9)
+    deltas = np.linspace(1, 10, 9)
     alpha = 0.05
     num_trials = 2000
     n_jobs = -1

@@ -36,7 +36,7 @@ def get_labels_at_K(model, K):
                     labels[idx] = cid
             return labels
     raise ValueError(f"No step found with {K} clusters")
-def find_best_K_F(X, tau, alpha_list, n_threshold=25, linkage="complete", total_alpha=0.05, rng = None):
+def find_best_K_F(X, tau, alpha_list, n_threshold=20, linkage="complete", total_alpha=0.05, rng = None):
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
         raise ValueError(

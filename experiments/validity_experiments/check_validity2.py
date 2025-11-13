@@ -16,10 +16,10 @@ import os
 
 warnings.filterwarnings("ignore", category=UserWarning)
 logging.getLogger("rpy2.rinterface_lib.callbacks").setLevel(logging.ERROR)
-ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
-#ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
+#ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
+ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
 def compute_pval_gao(X, K, linkage, method = "euclidean", seed = None):
-    #ro.r('source("/home/judydw/RAC_invariant/r_functions.R")')
+    #ro.r('source("/home/judydw/SI_HierarchicalClustering/src/r_functions.R")')
     #ro.r('source("/Users/judydw/Documents/GitHub/SI_HierarchicalClustering/src/r_functions.R")')
     with localconverter(default_converter + numpy2ri.converter):
         ro.globalenv['X'] = ro.conversion.py2rpy(X)
@@ -106,14 +106,20 @@ def check_barber_uniformity(n, p, sigma, K, linkage = "complete", num_trials = 5
 
 if __name__ == "__main__":
     import os
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--K", type=int, required=True)
+    args = parser.parse_args()
+
     random.seed(0)
     np.random.seed(0)
     n = 30
     p = 10
     sigma = 1.0
-    K = 3
-    linkage = "average"
-    num_trials = 1000
+    K = args.K
+    linkage = "complete"
+    num_trials = 2000
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw")
@@ -126,7 +132,7 @@ if __name__ == "__main__":
     pvals_result = {"Gao (sigma_all)": pvals_gao, "Gao (sigma_clustered)": pvals_gao_c, "Barber": pvals_barber}
     pvals_df = pd.DataFrame.from_dict(pvals_result)
 
-    pvals_df.to_csv(os.path.join(output_dir, f"pval_valid_gao&barber_K{K}_{linkage}.csv"), index=False)
+    pvals_df.to_csv(os.path.join(output_dir, f"pval_valid_gao&barber_K{K}.csv"), index=False)
 
 
 
