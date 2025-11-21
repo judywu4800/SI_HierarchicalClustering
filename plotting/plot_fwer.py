@@ -7,9 +7,20 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     total_alpha = 0.05
     output_dir = os.path.join("../results/figures")
-    df_results = pd.read_csv('../results/raw/fwer_results.csv')
+    import glob
+    files = glob.glob("../results/raw/fwer/fwer_tau_*.csv")
+    df_results = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    df_results["tau_num"] = df_results["tau"].replace("naive", 0).astype(float)
+    df_results = df_results.sort_values("tau_num")
+    print(df_results)
+
     labels = df_results["tau"].astype(str).tolist()
     x_positions = np.arange(len(labels))
+
+    xtick_labels = [
+        "Naive" if t == "naive" else rf"RAC(${t}$)"
+        for t in labels
+    ]
 
     plt.figure(figsize=(8, 5))
     non_naive_mask = df_results["tau"] != "naive"
@@ -18,7 +29,7 @@ if __name__ == "__main__":
         df_results.loc[non_naive_mask, "FWER"],
         marker='o',
         color='blue',
-        label="Empirical FWER"
+        label="Randomized Methods"
     )
     plt.scatter(
         x_positions[0],
@@ -26,14 +37,14 @@ if __name__ == "__main__":
         color='orange',
         marker='s',
         s=100,
-        label='Naive'
+        label='Naive Methods'
     )
 
-    plt.xticks(x_positions, labels)
+    plt.xticks(x_positions, xtick_labels)
     plt.axhline(y=total_alpha, color='red', linestyle='--', label=f"Alpha = {total_alpha}")
-    plt.xlabel("Tau")
+    plt.xlabel("Methods")
     plt.ylabel("FWER")
-    plt.title("FWER vs Tau (Null Data)")
+    plt.title(r"FWER vs $\tau$")
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()

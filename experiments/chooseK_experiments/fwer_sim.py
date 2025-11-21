@@ -24,7 +24,7 @@ def run_single_trial(tau, n, p, sigma, total_alpha):
 
 if __name__ == "__main__":
     #taus = [0, 0.01,0.025,0.05, 0.1,0.5,1]
-    taus = [0,0.025,0.05,0.1,0.25,0.5,1,5]
+    taus = [0,0.05]
     num_trials = 100
     n = 30
     p = 10

@@ -822,9 +822,17 @@ class AgglomerativeClustering:
                     log_prior = f.logpdf(x=fine_grid, dfn=dfn, dfd=dfd)
                     sel_probs = interpolation.sum(axis=0)
                     log_post = log_prior + sel_probs
-                    posterior = np.exp(log_post)
+                    #posterior = np.exp(log_post)
 
-                    posterior = posterior / np.max(posterior)
+                    #posterior = posterior / np.max(posterior)
+                    log_post_shift = log_post - np.max(log_post)
+                    posterior = np.exp(log_post_shift)
+                    posterior_sum = posterior.sum()
+                    if posterior_sum == 0 or np.isnan(posterior_sum):
+                        # fallback: use uniform distribution to avoid nan
+                        posterior = np.ones_like(posterior) / len(posterior)
+                    else:
+                        posterior = posterior / posterior_sum
                     sum = 0
                     num = 0
                     for g in range(ngrid*2):

@@ -16,17 +16,24 @@ def generate_alpha_list(n=30, total_alpha=0.05, seed=0):
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
     return alpha_list
 
-import numpy as np
-
-import numpy as np
-
-def generate_alpha_list_exp(n=30, total_alpha=0.05, decay_rate=1):
+def generate_alpha_list_exp(n=30, total_alpha=0.05, decay_rate=0.5):
     length = n - 1
     i = np.arange(length)
     alpha_raw = np.exp(-decay_rate * i)
     alpha_list = total_alpha * alpha_raw / np.sum(alpha_raw)
     return alpha_list
 
+'''
+def generate_alpha_list_exp(n=30, total_alpha=0.05, decay_rate=0.2, nonzero_count=10):
+    length = n - 1
+    k = min(nonzero_count, length)
+    i = np.arange(k)
+    raw = np.exp(-decay_rate * i)
+    alpha_nonzero = total_alpha * raw / raw.sum()
+    alpha_list = np.zeros(length)
+    alpha_list[:k] = alpha_nonzero
+    return alpha_list
+'''
 def get_labels_at_K(model, K):
     for winning_pair, clusters in model.existing_clusters_log.items():
         if len(clusters) == K:
@@ -36,7 +43,8 @@ def get_labels_at_K(model, K):
                     labels[idx] = cid
             return labels
     raise ValueError(f"No step found with {K} clusters")
-def find_best_K_F(X, tau, alpha_list, n_threshold=20, linkage="complete", total_alpha=0.05, rng = None):
+def find_best_K_F(X, tau, alpha_list, n_threshold=10, hard_threshold = 5, linkage="complete", total_alpha=0.05, seed = None):
+    rng = np.random.default_rng(seed)
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
         raise ValueError(
@@ -63,22 +71,24 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=20, linkage="complete", total_
         node = node1.parent
         n1 = len(node1.points)
         n2 = len(node2.points)
-        if min(n1, n2) <= n_threshold:
-            alpha = np.min(alpha_list)  # more conservative for smaller clusters
-            idx = np.argmin(alpha_list)
-
-            if (n1 + n2) == 2:
-                pval = 1  # F distribution method cannot handle the case when n1+n2=2
-            else:
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=30, ngrid=1000)
-
+        if min(n2, n2) <= hard_threshold:
+            pval = 1  # do not conduct test
+            alpha = 0
         else:
-            alpha = np.max(alpha_list)  # More power for larger clusters
-            idx = np.argmax(alpha_list)
-            pval, _, _ = model.merge_inference_F_grid(node, grid_width=250, ncoarse=30, ngrid=1000)
-        alpha_list = np.delete(alpha_list, idx)
+            if min(n1, n2) <= n_threshold:
+                alpha = np.min(alpha_list)  # more conservative for smaller clusters
+                idx = np.argmin(alpha_list)
+                pval, _, _ = model.merge_inference_F_grid(node, grid_width=300, ncoarse=20, ngrid=1000)
+
+            else:
+                alpha = np.max(alpha_list)  # More power for larger clusters
+                idx = np.argmax(alpha_list)
+                pval, _, _ = model.merge_inference_F_grid(node, grid_width=300, ncoarse=20, ngrid=1000)
+
+            alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)
+        print(pval)
         if pval < alpha:
             K_hat = n - t
             labels_est = get_labels_at_K(model, K_hat)

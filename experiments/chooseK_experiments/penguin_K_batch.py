@@ -3,9 +3,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import random
 import matplotlib.patches as mpatches
-from find_best_K import find_best_K_F, generate_alpha_list, get_labels_at_K, find_best_K_chi
+from find_best_K import find_best_K_F, generate_alpha_list_exp, get_labels_at_K, find_best_K_chi
 from hierarchical_clustering_invariant import *
 from palmerpenguins import load_penguins
+from alg2_one_trial2 import gap_statistic
 from joblib import Parallel, delayed
 from collections import Counter
 from datetime import datetime
@@ -18,16 +19,11 @@ parser.add_argument("--trial_id", type=int, default=0)
 args = parser.parse_args()
 
 
-def run_one_trial(seed):
-    rng = np.random.default_rng(seed)
-    K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, rng=rng)
-    return K
-
 
 if __name__ == '__main__':
     seed = int(args.trial_id)
-    rng = np.random.default_rng(seed)
-
+    np.random.seed(seed)
+    random.seed(seed)
 
     penguins_raw = load_penguins()
     penguins = penguins_raw[(penguins_raw["sex"] == "female") & (penguins_raw.notna().all(axis=1)) & (
@@ -41,12 +37,14 @@ if __name__ == '__main__':
     true_K = 3
     total_alpha = 0.05
     Ks = []
-    alpha_list = generate_alpha_list(n, 0.05)
+    alpha_list = generate_alpha_list_exp(n, 0.05, decay_rate=0.5)
 
     print(f"Starting trial {seed} with n={n}")
 
     start_time = datetime.now()
-    K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, rng=rng)
+    K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, linkage = "average",
+                                     total_alpha=0.05, n_threshold=0.4*n, hard_threshold=0.1*n, seed = seed)
+    K_hat_gap = gap_statistic(X,K_max=30, B=50)
     end_time = datetime.now()
     elapsed_minutes = (end_time - start_time).total_seconds() / 60
 
@@ -57,5 +55,5 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
 
     out_path = os.path.join(output_dir, f"K_trial_{seed}.csv")
-    pd.DataFrame({"trial_id": [seed], "K_hat": [K], "elapsed_min": [elapsed_minutes]}).to_csv(out_path, index=False)
+    pd.DataFrame({"trial_id": [seed], "K_hat": [K], "K_hat_gap": [K_hat_gap], "elapsed_min": [elapsed_minutes]}).to_csv(out_path, index=False)
 
