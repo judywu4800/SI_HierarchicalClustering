@@ -42,7 +42,7 @@ if __name__ == '__main__':
     print(f"Starting trial {seed} with n={n}")
 
     start_time = datetime.now()
-    K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, linkage = "average",
+    K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, linkage = "complete",
                                      total_alpha=0.05, n_threshold=0.4*n, hard_threshold=0.1*n, seed = seed)
     K_hat_gap = gap_statistic(X,K_max=30, B=50)
     end_time = datetime.now()
