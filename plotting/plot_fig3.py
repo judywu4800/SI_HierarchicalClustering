@@ -15,7 +15,7 @@ import os
 
 
 if __name__ == "__main__":
-    n_clusters = 3
+    n_clusters = 2
     output_dir = os.path.join("../results/figures")
     df_wcss = pd.read_csv(f"../results/raw/df_wcss_deltas_K{n_clusters}_fig3.csv")
     df_ari =  pd.read_csv(f"../results/raw/df_ari_deltas_K{n_clusters}_fig3.csv")
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     custom_colors = ["#FF758F",  "#9CBE86"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     sns.boxplot(data=df_wcss, x='delta', y='WCSS/TSS', hue='Method',
                 palette=custom_colors, ax=axes[0])
@@ -42,12 +42,22 @@ if __name__ == "__main__":
     axes[0].set_ylabel("WCSS/TSS", fontsize=12)
     axes[0].tick_params(axis='x', labelsize=9)
 
+    handles, labels = axes[0].get_legend_handles_labels()
+    new_labels = ["RC(0)" if lbl == "Naive" else "RC(3)" for lbl in labels]
+    axes[0].legend(handles, new_labels, title="Method",loc = "center right")
+
     sns.boxplot(data=df_ari, x='delta', y='ARI', hue='Method', palette=custom_colors, ax = axes[1])
     axes[1].set_title('Boxplot for ARI', fontsize=14, fontweight='bold')
     axes[1].set_xlabel(r"$\delta$", fontsize=12)
     axes[1].set_ylabel("ARI", fontsize=12)
     axes[1].tick_params(axis='x', labelsize=9)
+    handles, labels = axes[1].get_legend_handles_labels()
+    new_labels = ["RC(0)" if lbl == "Naive" else "RC(3)" for lbl in labels]
+    axes[1].legend(handles, new_labels, title="Method",loc = "center right")
 
+
+
+    '''
     methods = df_recovery['Method'].unique()
     colors = {"Naive": custom_colors[0], "Randomized": custom_colors[1]}
 
@@ -68,6 +78,8 @@ if __name__ == "__main__":
     axes[2].set_xlabel(r"$\delta$", fontsize=12)
     axes[2].set_ylabel("Recovery Probability", fontsize=12)
     axes[2].legend(title="Method",loc = 'lower right', fontsize=10)
+
+    '''
 
 
     plt.tight_layout(pad=0.2, w_pad=0.3)

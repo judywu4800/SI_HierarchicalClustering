@@ -66,17 +66,17 @@ if __name__=="__main__":
 
         ax.set_ylim(-1.1 * y_global, 1.1 * y_global)
 
-        ax.set_title(rf"$K^*$ = {Ktrue}", fontsize=14)
-        ax.set_xlabel(r"$\widehat{K}$", fontsize=13)
+        ax.set_title(rf"$K^*$ = {Ktrue}", fontsize=16)
+        ax.set_xlabel(r"$\widehat{K}$", fontsize=14)
         ax.tick_params(axis='x', labelsize=9)
 
         yticks = ax.get_yticks()
         ax.set_yticklabels([f"{int(abs(y))}" for y in yticks])
 
-    axes[0].set_ylabel("Frequency", fontsize=13)
-    axes[5].set_ylabel("Frequency", fontsize=13)
+    axes[0].set_ylabel("Frequency", fontsize=15)
+    axes[5].set_ylabel("Frequency", fontsize=15)
     legend_elements = [
-        Patch(facecolor="#3A8E7A", edgecolor="black", label="Proposed Method"),
+        Patch(facecolor="#3A8E7A", edgecolor="black", label="RC(3)"),
         Patch(facecolor="#6FB7E9", edgecolor="black", label="Gap Statistics"),
         Line2D([0], [0], color='red', linestyle='--', linewidth=2, label=r"$K^*$")
     ]
@@ -88,7 +88,7 @@ if __name__=="__main__":
         handles=legend_elements,
         loc="lower center",
         ncol=3,
-        fontsize=14,
+        fontsize=15,
         frameon=False,
         bbox_to_anchor=(0.5, 0.001)
     )

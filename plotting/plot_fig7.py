@@ -82,7 +82,7 @@ if __name__=="__main__":
     from matplotlib.patches import Patch
 
     legend_handles = [
-        Patch(facecolor="#3A8E7A", edgecolor="black", label="Proposed Method"),
+        Patch(facecolor="#3A8E7A", edgecolor="black", label="RC(3)"),
         Patch(facecolor="#6FB7E9", edgecolor="black", label="Gap Statistic")
     ]
     trueK_handle = Line2D(

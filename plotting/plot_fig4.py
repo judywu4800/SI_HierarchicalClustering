@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     fig, axes = plt.subplots(
         2, 3,
-        figsize=(10, 8),
+        figsize=(11, 8),
         gridspec_kw={"width_ratios": [1, 0.35, 1]}
     )
 
@@ -43,8 +43,7 @@ if __name__ == "__main__":
         ax_ecdf = axes[row, 0]
         rand_colors = green_shades[:len(tau_cols)]
         for i, col in enumerate(tau_cols):
-            tau_val = col.split('=')[1]
-            label = f"RAC({tau_val})"
+            label = f"RC({i + 1})"
             color = rand_colors[i % len(green_shades)]
             plot_ecdf(df[col].dropna().to_numpy(), label, color=color, ax=ax_ecdf)
 
@@ -79,16 +78,19 @@ if __name__ == "__main__":
         ticks = ax_type1.get_xticks()
         labels = [t.get_text() for t in ax_type1.get_xticklabels()]
         new_labels = []
-        for lbl in labels:
+        for idx, lbl in enumerate(labels):
             try:
                 val = float(lbl)
-                new_labels.append("Naive" if val==0 else f"RAC({val:g})")
+                if val == 0:
+                    new_labels.append("Naive")
+                else:
+                    new_labels.append(f"RC({idx})")
             except:
                 new_labels.append(lbl)
 
         ax_type1.set_xticks(ticks)
         ax_type1.set_xticklabels(new_labels)
-        ax_type1.tick_params(axis='x', rotation=45, labelsize=9)
+        ax_type1.tick_params(axis='x', labelsize=9)
         ax_type1.axhline(alpha, linestyle='--', linewidth=1, color='red')
         ax_type1.set_xlabel("Method", fontsize=12)
         ax_type1.set_ylabel("Type I Error", fontsize=12)

@@ -16,8 +16,8 @@ if __name__ == "__main__":
     # === colors ===
     color_map = {
         "RAC": "#7B9669",                   # green
-        "Yun & Barber": "#B069DB",                # purple
-         r"Gao et al.($\widehat{\sigma}$)": "#F7B718",  # yellow
+        "Yun and Barber": "#B069DB",                # purple
+         r"Gao et al.": "#F7B718",  # yellow
          r"Gao et al.($\widehat{\sigma}_{\text{clustered}}$)": "#8e1b01", # dark red
         "Expected (Uniform)": "#FF0000"     # red dashed line
     }
@@ -50,7 +50,7 @@ if __name__ == "__main__":
                         np.sort(df_rand[col].dropna()),
                         np.arange(1, df_rand[col].dropna().size + 1) / df_rand[col].dropna().size,
                         where="post", color=color_map["RAC"], linewidth=1.8,
-                        label=f"RAC({tau})" if "RAC" not in all_labels else None
+                        label="RC(3)" if "RAC" not in all_labels else None
                     )[0]
                     if "RAC" not in all_labels:
                         handles_for_legend.append(h)
@@ -62,9 +62,9 @@ if __name__ == "__main__":
                 if os.path.exists(gb_path):
                     df_gb = pd.read_csv(gb_path)
                     label_map = {
-                        "Gao (sigma_all)": r"Gao et al.($\widehat{\sigma}$)",
+                        "Gao (sigma_all)": r"Gao et al.",
                         "Gao (sigma_clustered)": r"Gao et al.($\widehat{\sigma}_{\text{clustered}}$)",
-                        "Barber": "Yun & Barber"
+                        "Barber": "Yun and Barber"
                     }
 
                     for colname in df_gb.columns:
@@ -97,12 +97,12 @@ if __name__ == "__main__":
 
             # labels
             if row_idx == 1:
-                ax.set_xlabel("p-value", fontsize=12)
+                ax.set_xlabel("p-value", fontsize=13)
             if col_idx == 0:
-                ax.set_ylabel("ECDF", fontsize=12)
+                ax.set_ylabel("ECDF", fontsize=13)
 
             # title includes K
-            ax.set_title(f"({chr(97 + i)}) {linkage.capitalize()} (K = {K})", fontsize=12)
+            ax.set_title(f"({chr(97 + i)}) {linkage.capitalize()} (K = {K})", fontsize=13)
 
     # === Unified legend below ===
     fig.legend(
@@ -110,7 +110,7 @@ if __name__ == "__main__":
         [h.get_label() for h in handles_for_legend],
         loc="lower center",
         bbox_to_anchor=(0.5, -0.01),
-        ncol=5, fontsize=10, frameon=False
+        ncol=5, fontsize=13, frameon=False
     )
 
     # tighter margins

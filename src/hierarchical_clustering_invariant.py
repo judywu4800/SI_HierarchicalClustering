@@ -1100,9 +1100,9 @@ class AgglomerativeClustering:
             stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
             dir = self.compute_dirT(self.X.T@norm_nu)
             if np.isscalar(Sigma):
-                observed_target = np.linalg.norm(X.T @ norm_nu) / Sigma  # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
+                observed_target = np.linalg.norm(self.X.T @ norm_nu) / Sigma  # need to also be ｜X^Tnu｜_2/|nu|^2_2/sd
             else:
-                observed_target = np.linalg.norm(X.T @ norm_nu)
+                observed_target = np.linalg.norm(self.X.T @ norm_nu)
 
 
             sel_probs = 0

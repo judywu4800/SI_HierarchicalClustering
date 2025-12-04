@@ -66,10 +66,10 @@ if __name__ == "__main__":
             i = row_idx * len(linkages) + col_idx
             ax = axes[row_idx, col_idx]
 
-            ax.set_title(f"{letters[i]} {linkage} (K={K})", fontsize=12)
+            ax.set_title(f"{letters[i]} {linkage} (K={K})", fontsize=13)
             ax.set_xlabel("Effect size", fontsize=12)
             if col_idx == 0:
-                ax.set_ylabel("Power")
+                ax.set_ylabel("Power",fontsize =12)
             ax.grid(True, linestyle="--", alpha=0.4)
 
             # File paths
@@ -84,7 +84,7 @@ if __name__ == "__main__":
                     dfg, xcol="effect_size", ycol="reject", n_bins=10, min_count=1, alpha=0.05
                 )
                 if len(bx) > 0:
-                    latex_label_gao = r"Gao et al. ($\widehat{\sigma}$)"
+                    latex_label_gao = r"Gao et al."
                     h = ax.errorbar(
                         bx, by, yerr=[by - lower, upper - by],
                         fmt='s--', capsize=3, color=colors["gao"],
@@ -106,11 +106,11 @@ if __name__ == "__main__":
                     h = ax.errorbar(
                         bx, by, yerr=[by - lower, upper - by],
                         fmt='d--', capsize=3, color=colors["barber"],
-                        label="Yun & Barber"
+                        label="Yun and Barber"
                     )[0]
-                    if "Yun & Barber" not in labels_for_legend:
+                    if "Yun and Barber" not in labels_for_legend:
                         handles_for_legend.append(h)
-                        labels_for_legend.append("Yun & Barber")
+                        labels_for_legend.append("Yun and Barber")
             else:
                 print(f"Missing Barber file for K={K}, {linkage}")
 
@@ -126,11 +126,11 @@ if __name__ == "__main__":
                         h = ax.errorbar(
                             bx, by, yerr=[by - lower, upper - by],
                             fmt='o-', capsize=3, color=colors["sel"],
-                            label="RAC (0.1)"
+                            label="RC(3)"
                         )[0]
-                        if "RAC (0.1)" not in labels_for_legend:
+                        if "RC(3)" not in labels_for_legend:
                             handles_for_legend.append(h)
-                            labels_for_legend.append("RAC (0.1)")
+                            labels_for_legend.append("RC(3)")
                 else:
                     print(f"No tau=0.1 data for K={K}, {linkage}")
             else:
@@ -140,9 +140,9 @@ if __name__ == "__main__":
             # --- Fallback if no data ---
             if len(ax.lines) == 0:
                 ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                        fontsize=11, color="gray", transform=ax.transAxes)
+                        fontsize=12, color="gray", transform=ax.transAxes)
 
-            ax.set_ylim(-0.01, 1.05)
+            ax.set_ylim(-0.0, 1.05)
     all_handles, all_labels = [], []
     for ax in axes.flatten():
         h, l = ax.get_legend_handles_labels()
@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     unique = dict(zip(all_labels, all_handles))
 
-    desired_order = ["RAC (0.1)", r"Gao et al. ($\widehat{\sigma}$)", "Yun & Barber"]
+    desired_order = ["RC(3)", r"Gao et al.", "Yun and Barber"]
 
     legend_labels = []
     legend_handles = []
@@ -169,9 +169,9 @@ if __name__ == "__main__":
         handles=legend_handles,
         labels=legend_labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.02),
+        bbox_to_anchor=(0.5, -0.03),
         ncol=3,
-        fontsize=10,
+        fontsize=13,
         frameon=False
     )
 

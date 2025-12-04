@@ -75,7 +75,7 @@ if __name__ == '__main__':
     axes[0,0].tick_params(axis='x', labelsize=8)
     axes[0,0].tick_params(axis='y', labelsize=10)
     for i in range(len(X)):
-        axes[0,0].annotate(str(i), (X[i, 0], X[i, 1]), fontsize=10, ha='right', va='center')
+        axes[0,0].annotate(str(i), (X[i, 0], X[i, 1]), fontsize=10, ha='center', va='center')
 
     for label_val in unique_labels:
         axes[0,0].scatter([], [], color=color_dict[label_val], label=f"Label {int(label_val)}")
