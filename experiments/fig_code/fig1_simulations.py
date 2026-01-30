@@ -7,9 +7,9 @@ from find_best_K import find_best_K_F, generate_alpha_list
 from hierarchical_clustering_invariant import AgglomerativeClustering
 
 if __name__ == "__main__":
-    batch_id = int(os.environ.get("BATCH_ID", 0))        # e.g., from job array index
-    num_batches = int(os.environ.get("NUM_BATCHES", 10)) # total number of batches
-    reps_per_batch = int(os.environ.get("REPS_PER_BATCH", 10))  # trials per batch
+    batch_id = int(os.environ.get("BATCH_ID", 0))
+    num_batches = int(os.environ.get("NUM_BATCHES", 10))
+    reps_per_batch = int(os.environ.get("REPS_PER_BATCH", 10))
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     output_dir = os.path.join(base_dir, "results/raw/fig1")
@@ -33,8 +33,9 @@ if __name__ == "__main__":
     Ks = []
     for rep in range(reps_per_batch):
         print(f"[Batch {batch_id}] Trial {rep + 1}/{reps_per_batch}...")
-        child_rng = np.random.default_rng(rng.integers(1e9))
-        K_hat, _, _, _ = find_best_K_F(X, tau=0.05, alpha_list=alpha_list, rng=child_rng)
+        #child_rng = np.random.default_rng(rng.integers(1e9))
+        seed = rng.integers(1_000_000_000)
+        K_hat, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, seed=seed)
         Ks.append(K_hat)
 
     Ks = np.array(Ks)

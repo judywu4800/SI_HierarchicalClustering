@@ -88,8 +88,20 @@ if __name__ == '__main__':
     )
     legend.get_title().set_fontweight('bold')
 
-    axes[1, 1].hist(Ks, bins=20, density=False, alpha=0.7,
-                    color="#9579d9", edgecolor="black", label=r"$\hat{K}$")
+    Ks_int = np.asarray(Ks, dtype=int)
+    k_min, k_max = Ks_int.min(), Ks_int.max()
+
+    bins = np.arange(2 - 0.5, 6 + 1.5, 1)
+
+    axes[1, 1].hist(
+        Ks_int,
+        bins=bins,
+        density=False,
+        rwidth=0.3,
+        alpha=0.7,
+        color="grey",
+        edgecolor="black"
+    )
     axes[1, 1].axvline(x=true_K, color='red', linestyle='--',
                        linewidth=2, label=fr"$K_{{\mathrm{{true}}}}$= {true_K}")
     axes[1, 1].set_xlabel("$\hat{K}$", fontsize=12, fontweight='bold')

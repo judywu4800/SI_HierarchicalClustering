@@ -14,7 +14,7 @@ if __name__ == "__main__":
     sigma = 1
     #tau_list = [0,0.01,0.025, 0.05,0.075, 0.1]
     tau_list = [0.1]
-    deltas = np.linspace(3,12,9)
+    deltas = np.linspace(1,10,9)
     alpha = 0.05
     num_trials = 2000
     K = 3
