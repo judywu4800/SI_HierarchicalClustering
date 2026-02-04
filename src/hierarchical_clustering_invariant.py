@@ -720,7 +720,7 @@ class AgglomerativeClustering:
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            print(low,high)
+            #print(low,high)
             return low, high
 
         def get_corrected_cdf(sel_probs, dfn, dfd, grid):
@@ -974,7 +974,7 @@ class AgglomerativeClustering:
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            print(low,high)
+            #print(low,high)
             return low, high
 
         def get_corrected_cdf(sel_probs, df, grid):
@@ -1367,7 +1367,7 @@ class AgglomerativeClustering:
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            print(low,high)
+            #print(low,high)
             return low, high
 
         def get_corrected_cdf(sel_probs, dfn, dfd, grid):

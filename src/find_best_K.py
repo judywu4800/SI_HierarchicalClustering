@@ -88,7 +88,7 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=10, hard_threshold = 5, linkag
             alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)
         p_values.append(pval)
-        print(pval)
+        #print(pval)
         if pval < alpha:
             K_hat = n - t
             labels_est = get_labels_at_K(model, K_hat)

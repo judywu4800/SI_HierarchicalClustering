@@ -531,7 +531,7 @@ class AgglomerativeClustering_adaptivetau:
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            print(low, high)
+            #print(low, high)
             return low, high
 
         def get_corrected_cdf(sel_probs, dfn, dfd, grid):
@@ -639,7 +639,7 @@ class AgglomerativeClustering_adaptivetau:
                                  fill_value='extrapolate')(fine_grid)
                         for s in range(step)
                     ])
-                    print(sel_probs_tau_coarse)
+                    #print(sel_probs_tau_coarse)
 
                     f_tau = interp1d(new_coarse_grid, sel_probs_tau_coarse,
                                      kind='quadratic',
@@ -790,7 +790,7 @@ class AgglomerativeClustering_adaptivetau:
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            print(low, high)
+            #print(low, high)
             return low, high
 
         def get_corrected_cdf(sel_probs, dfn, dfd, grid):

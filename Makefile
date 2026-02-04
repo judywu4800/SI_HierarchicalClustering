@@ -5,7 +5,7 @@
 
 
 # Variables
-PYTHON := $(CURDIR)/.venv/bin/python
+PYTHON := python
 PYTHONPATH := $(CURDIR)/src
 SRC_DIR := src
 RESULTS_DIR := results
@@ -188,6 +188,9 @@ K_LIST := 2 3 4
 N_REP := 3
 
 fig9_sim:
+	# Here we use num_rep=3 for demonstration
+	# In experiments we used 100 trials.
+	# Please change the parameters below accordingly to reproduce the plot.
 	@for K in $(K_LIST); do \
 		for t in $$(seq 0 $(shell expr $(N_REP) - 1)); do \
 			echo "K=$$K trial=$$t (n=$(N), p=$(P), delta=$(DELTA))"; \
