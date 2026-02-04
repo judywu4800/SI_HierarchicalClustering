@@ -1,187 +1,63 @@
+import random
 import sys, os
 sys.path.append(os.path.abspath('../src'))
-import glob
-import pandas as pd
 import numpy as np
+import pandas as pd
+from sklearn.datasets import make_blobs
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
+from hierarchical_clustering_invariant import AgglomerativeClustering
+from utils import *
+import sklearn.cluster as cluster
+from sklearn.metrics import adjusted_rand_score
+import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib.lines import Line2D
-if __name__=="__main__":
-    n= 30
+import os
+
+
+if __name__ == "__main__":
+    n_clusters = 2
     output_dir = os.path.join("../results/figures")
-    os.makedirs(output_dir, exist_ok=True)
-    files = glob.glob(f"../results/k_hat/k_hat_raw_{n}/*.csv")
-    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-    delta_list = [4,6,8,10,12,14]
-    df = df[df["delta"].isin(delta_list)]
+    df_wcss = pd.read_csv(f"../results/raw/fig7/df_wcss_deltas_K{n_clusters}_fig7.csv")
+    df_ari =  pd.read_csv(f"../results/raw/fig7/df_ari_deltas_K{n_clusters}_fig7.csv")
+    df_recovery =  pd.read_csv(f"../results/raw/fig7/df_recovery_deltas_K{n_clusters}_fig7.csv")
 
-
-    fig, axes = plt.subplots(
-    2, 4,                     # 2 rows, 4 columns
-    figsize=(14, 8),
-    gridspec_kw={"width_ratios": [1, 1, 1, 1]}   # rightmost column is narrow legend panel
+    # --- aggregate recovery probability ---
+    df_recovery = (
+        df_recovery
+        .groupby(['delta', 'Tau', 'Method'], as_index=False)['Recovery']
+        .mean()
+        .rename(columns={'Recovery': 'Recovery Probability'})
     )
 
-    axes = axes.reshape(2, 4)
+    distances = [2,4,6,8,10,12,14]
 
-    # first 3 columns (0,1,2) are real plots
-    plot_axes = axes[:, :3].flatten()  # 6 axes in row-major order
+    custom_colors = ["#FF758F",  "#9CBE86"]
 
-    # last column (col=3) are legend panels
-    legend_ax_top = axes[0, 3]
-    legend_ax_bottom = axes[1, 3]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
-    # turn off both legend axes
-    legend_ax_top.axis("off")
-    legend_ax_bottom.axis("off")
+    sns.boxplot(data=df_wcss, x='delta', y='WCSS/TSS', hue='Method',
+                palette=custom_colors, ax=axes[0])
+    axes[0].set_title('Boxplot for WCSS/TSS', fontsize=14, fontweight='bold')
+    axes[0].set_xlabel(r"$\delta$", fontsize=12)
+    axes[0].set_ylabel("WCSS/TSS", fontsize=12)
+    axes[0].tick_params(axis='x', labelsize=9)
 
-    Kmin = 1
-    Kmax = max(df["K_hat_F"].max(), df["K_hat_gap"].max())
-    bins = np.arange(Kmin - 0.5, Kmax + 1.5, 1)
+    handles, labels = axes[0].get_legend_handles_labels()
+    new_labels = ["RC(0)" if lbl == "Naive" else "RC(3)" for lbl in labels]
+    axes[0].legend(handles, new_labels, title="Method",loc = "center right")
 
-    for idx, delta in enumerate(delta_list):
-        ax = plot_axes[idx]
-        sub = df[df["delta"] == delta]
+    sns.boxplot(data=df_ari, x='delta', y='ARI', hue='Method', palette=custom_colors, ax = axes[1])
+    axes[1].set_title('Boxplot for ARI', fontsize=14, fontweight='bold')
+    axes[1].set_xlabel(r"$\delta$", fontsize=12)
+    axes[1].set_ylabel("ARI", fontsize=12)
+    axes[1].tick_params(axis='x', labelsize=9)
+    handles, labels = axes[1].get_legend_handles_labels()
+    new_labels = ["RC(0)" if lbl == "Naive" else "RC(3)" for lbl in labels]
+    axes[1].legend(handles, new_labels, title="Method",loc = "center right")
 
-        # Proposed
-        counts_F, edges = np.histogram(sub["K_hat_F"], bins=bins)
-        ax.fill_between(
-            edges.repeat(2)[1:-1],
-            np.repeat(counts_F, 2),
-            step="pre",
-            alpha=0.7,
-            color="#3A8E7A",
-            edgecolor="black"
-        )
 
-        # Gap
-        counts_G, _ = np.histogram(sub["K_hat_gap"], bins=bins)
-        ax.fill_between(
-            edges.repeat(2)[1:-1],
-            -np.repeat(counts_G, 2),
-            step="pre",
-            alpha=0.7,
-            color="#6FB7E9",
-            edgecolor="black"
-        )
+    plt.tight_layout(pad=0.2, w_pad=0.3)
+    plt.savefig(os.path.join(output_dir, f"figure7_K{n_clusters}.png"),
+                dpi=300, bbox_inches='tight', pad_inches=0.02)
+    plt.close()
 
-        ax.axvline(3, color="red", linestyle="--", linewidth=2, label="True K = 3")
-
-        ax.set_title(rf"$\delta = {delta}$", fontsize=14)
-        ax.set_xticks(np.arange(Kmin, Kmax + 1))
-        ax.set_xlabel(r"$\widehat{K}$", fontsize=12)
-
-        ymax = max(counts_F.max(), counts_G.max())
-        ax.set_ylim(-1.1 * ymax, 1.1 * ymax)
-
-        if idx in [0, 3]:   # first column of each row
-            ax.set_ylabel("Frequency", fontsize=12)
-
-    # ---- Legend in the top-right panel ----
-    from matplotlib.patches import Patch
-
-    legend_handles = [
-        Patch(facecolor="#3A8E7A", edgecolor="black", label="RC(3)"),
-        Patch(facecolor="#6FB7E9", edgecolor="black", label="Gap Statistic")
-    ]
-    trueK_handle = Line2D(
-        [0], [0],
-        color="red",
-        linestyle="--",
-        linewidth=2,
-        label="$K^* = 3$"
-    )
-
-    legend_ax_top.legend(
-        handles=legend_handles + [trueK_handle],
-        loc="center",
-        fontsize=14
-    )
-
-    # y-axis positive ticks
-    for ax in plot_axes:
-        yticks = ax.get_yticks()
-        ax.set_yticklabels([f"{int(abs(y))}" for y in yticks])
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "fig7_n30_2x3.png"), bbox_inches="tight")
-    plt.show()
-    '''
-
-    fig, axes = plt.subplots(
-        1, 7,
-        figsize=(16, 6),
-        gridspec_kw={"width_ratios": [1, 1, 1, 1, 1, 1, 0.2]}
-    )
-    axes = axes.flatten()
-
-    # use only first 6 for plotting
-    plot_axes = axes[:6]
-    legend_ax = axes[6]  # empty panel for legend
-
-    Kmin = 1
-    Kmax = max(df["K_hat_F"].max(), df["K_hat_gap"].max())
-    bins = np.arange(Kmin - 0.5, Kmax + 1.5, 1)
-
-    for idx, delta in enumerate(delta_list):
-        ax = plot_axes[idx]
-        sub = df[df["delta"] == delta]
-
-        # --- Proposed ---
-        counts_F, edges = np.histogram(sub["K_hat_F"], bins=bins)
-        ax.fill_between(
-            edges.repeat(2)[1:-1],
-            np.repeat(counts_F, 2),
-            step="pre",
-            alpha=0.7,
-            color="#3A8E7A",
-            edgecolor="black"
-        )
-
-        # --- Gap ---
-        counts_G, edges = np.histogram(sub["K_hat_gap"], bins=bins)
-        ax.fill_between(
-            edges.repeat(2)[1:-1],
-            -np.repeat(counts_G, 2),
-            step="pre",
-            alpha=0.7,
-            color="#6FB7E9",
-            edgecolor="black"
-        )
-
-        ax.axvline(3, color="red", linestyle="--", linewidth=2)
-
-        ax.set_title(rf"$\delta$ = {delta}", fontsize=14)
-        ax.set_xticks(np.arange(Kmin, Kmax + 1))
-        ax.set_xlabel(r"$\widehat{K}$", fontsize=14)
-
-        ymax = max(counts_F.max(), counts_G.max())
-        ax.set_ylim(-1.1 * ymax, 1.1 * ymax)
-
-        if idx == 0:
-            ax.set_ylabel("Frequency")
-
-    # --- EMPTY PANEL FOR LEGEND ---
-    legend_ax.axis("off")
-
-    from matplotlib.patches import Patch
-
-    legend_handles = [
-        Patch(facecolor="#3A8E7A", edgecolor="black", label="Proposed Method"),
-        Patch(facecolor="#6FB7E9", edgecolor="black", label="Gap statistics")
-    ]
-
-    legend_ax.legend(
-        handles=legend_handles,
-        loc="center",
-        fontsize=12
-    )
-    for ax in plot_axes:
-        yticks = ax.get_yticks()
-        ax.set_yticklabels([f"{int(abs(y))}" for y in yticks])
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "fig7_n30_1row.png"), bbox_inches="tight")
-
-    plt.show()
-    '''

@@ -254,33 +254,6 @@ if __name__ == "__main__":
     df.to_csv(os.path.join(output_dir, "k_hat_results.csv"), index=False)
 
 
-    '''
-        for sd, result in results.items():
-        for kf, kg, pr,pg in zip(result["Proposed Method"], result["Gap Test"], result["Preserve"], result["Preserve_Gap"]):
-            rows.append((sd, kf, kg, pr,pg))
-
-    df = pd.DataFrame(rows, columns=["delta", "K_hat_F", "K_hat_gap", "Preserve", "Preserve_Gap"])
-    df.to_csv(os.path.join(output_dir, "k_hat_results.csv"), index=False)
-    result_corollary = (
-        df.groupby("delta")
-        .apply(lambda g: pd.Series({
-            "P(K<=3| Preserve=True)": ((g["K_hat_F"] <= 3) & (g["Preserve"])).sum() / (g["Preserve"]).sum()
-            if (g["Preserve"]).sum()>0 else np.nan,
-            #"P(K<=3| Preserve=False)": ((g["K_hat_F"] <= 3) & (~g["Preserve"])).sum() / (~g["Preserve"]).sum() if (~g["Preserve"]).sum()>0 else np.nan,
-            "P(K>3| Preserve=True)": ((g["K_hat_F"] > 3) & (g["Preserve"])).sum() / (g["Preserve"]).sum() if (g["Preserve"]).sum()>0 else np.nan,
-            "P(Preserve = False)": (~g["Preserve"]).sum() / len(g),
-            "P(K<=3| Preserve_gap=True)": ((g["K_hat_gap"] <= 3) & (g["Preserve_Gap"])).sum() / (g["Preserve_Gap"]).sum()
-            if (g["Preserve_Gap"]).sum()>0 else np.nan,
-            #"P(K<=3| Preserve_gap=False)": ((g["K_hat_gap"] <= 3) & (~g["Preserve_Gap"])).sum() / (~g["Preserve_Gap"]).sum() if (~g["Preserve_Gap"]).sum()>0 else np.nan,
-            "P(Preserve_Gap= False)": (~g["Preserve_Gap"]).sum() / len(g)
-        }))
-        .reset_index()
-    )
-
-    result_corollary.to_csv(os.path.join(output_dir, "ratio_by_sd.csv"), index=False)    
-    '''
-
-
     # ---- Boxplot comparison ----
     plt.figure(figsize=(8, 6))
     sns.boxplot(x="delta", y="K_hat_F", data=df, color="skyblue", width=0.5)
@@ -336,32 +309,3 @@ if __name__ == "__main__":
     plt.suptitle("Heatmaps: Estimated K̂ vs Cluster separation", fontsize=14)
     plt.savefig(os.path.join(output_dir, "Heatmap_side_by_side.png"))
     plt.close()
-
-    '''
-# ---- Line plot: Compare P(K<=3 | Preserve=True) vs 1 - alpha ----
-    alpha = 0.05
-    plt.figure(figsize=(8, 6))
-
-    plt.plot(
-        result_corollary["delta"],
-        result_corollary["P(K<=3| Preserve=True)"],
-        marker="o", linewidth=2, label="Proposed Method"
-    )
-
-    plt.plot(
-        result_corollary["delta"],
-        result_corollary["P(K<=3| Preserve_gap=True)"],
-        marker="s", linewidth=2, label="Gap Test"
-    )
-
-    plt.axhline(y=1 - alpha, color="red", linestyle="--", linewidth=2, label="1 - α (theoretical lower bound)")
-
-    plt.xlabel("Cluster separation δ", fontsize=12)
-    plt.ylabel("Conditional probability  P( K̂ ≤ 3 | Preserve=True )", fontsize=12)
-    plt.title("Verification of Corollary 1 across cluster separations", fontsize=14)
-    plt.legend()
-    plt.tight_layout()
-
-    plt.savefig(os.path.join(output_dir, "corollary_verification_lineplot.png"))
-    plt.close()     
-    '''

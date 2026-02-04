@@ -1,6 +1,12 @@
 import random
 import sys, os
-sys.path.append(os.path.abspath('../src'))
+def get_repo_root():
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    )
+
+REPO_ROOT = get_repo_root()
+sys.path.append(os.path.join(REPO_ROOT, "src"))
 import numpy as np
 import pandas as pd
 from sklearn.datasets import make_blobs
@@ -17,9 +23,9 @@ import os
 if __name__ == "__main__":
     K=2
     output_dir = os.path.join("../results/figures")
-    df_wcss = pd.read_csv(f"../results/raw/df_wcss_{K}.csv")
-    df_ari =  pd.read_csv(f"../results/raw/df_ari_{K}.csv")
-    df_recovery =  pd.read_csv(f"../results/raw/df_recovery_{K}.csv")
+    df_wcss = pd.read_csv(f"../results/raw/fig2/df_wcss_{K}_fig2.csv")
+    df_ari =  pd.read_csv(f"../results/raw/fig2/df_ari_{K}_fig2.csv")
+    df_recovery =  pd.read_csv(f"../results/raw/fig2/df_recovery_{K}_fig2.csv")
 
     # --- aggregate recovery probability ---
     df_recovery = df_recovery.groupby(['Tau', 'Method'])['Recovery'].mean().reset_index()
@@ -37,9 +43,8 @@ if __name__ == "__main__":
     recovery_sub = df_recovery[df_recovery['Tau'].isin(subset_tau)].copy()
     rec_x_pos = range(len(subset_tau))
 
-    custom_colors = ["#FF758F", "#BFE8A4", "#9CBE86", "#7B9669", "#5B704D", "#3D4C33",  "#222B1B"]
+    #custom_colors = ["#FF758F", "#BFE8A4", "#9CBE86", "#7B9669", "#5B704D", "#3D4C33",  "#222B1B"]
     custom_colors = ["#FF758F","#C4EAA7", "#A9D595", "#8DBE7E","#729869", "#587450", "#3F5237", "#252D1D"]
-    #custom_colors = ['#cc5e72', '#99ba83', '#7d986b', '#627854', '#495a3e', '#313d29', '#1b2216']
     fig, axes = plt.subplots(1, 2, figsize=(12,4))
 
     sns.boxplot(data=wcss_sub, x='method', y='WCSS/TSS', hue='method',
@@ -54,16 +59,6 @@ if __name__ == "__main__":
     axes[1].set_xlabel("Method", fontsize=12)
     axes[1].set_ylabel("ARI", fontsize=12)
     axes[1].tick_params(axis='x', labelsize=12)
-
-    '''
-    axes[2].plot(rec_x_pos, recovery_sub['Recovery Probability'], marker='o', color="#222B1B", linewidth=2)
-    axes[2].set_xticks(rec_x_pos)
-    axes[2].set_xticklabels(labels)
-    axes[2].tick_params(axis='x', labelsize=7)
-    axes[2].set_xlabel("Method", fontsize=12)
-    axes[2].set_ylabel("Recovery Probability", fontsize=12)
-    axes[2].set_title("Line Plot for Recovery Probability", fontsize=14, fontweight='bold')
-    '''
 
 
 

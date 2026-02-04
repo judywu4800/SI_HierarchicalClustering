@@ -22,7 +22,7 @@ if __name__ == "__main__":
     n_jobs = -1
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    output_dir = os.path.join(base_dir, "results/raw")
+    output_dir = os.path.join(base_dir, "results/raw/fig3")
     os.makedirs(output_dir, exist_ok=True)
 
 

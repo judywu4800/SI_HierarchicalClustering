@@ -91,7 +91,7 @@ get_gao_pval <- function(X,K, linkage, method = "euclidean", seed = NULL){
 check_gao_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
   linkage = "complete", num_trials = 1000,
-  num_repeats = 20, n_jobs = 8, seed_master = 0
+  num_repeats = 1, n_jobs = 8, seed_master = 0
 ) {
   set.seed(seed_master)
   repeat_seeds <- sample.int(1e8, num_repeats)
@@ -176,7 +176,7 @@ get_gao_pval_clustered <- function(X,K, linkage, method = "euclidean",seed = NUL
 check_gao_clustered_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
   linkage = "complete", num_trials = 1000,
-  num_repeats = 20, n_jobs = 8, seed_master = 0
+  num_repeats = 1, n_jobs = 8, seed_master = 0
 ) {
   set.seed(seed_master)
   repeat_seeds <- sample.int(1e8, num_repeats)
@@ -706,7 +706,7 @@ get_barber_pval <- function(X, K, linkage = "complete", seed = NULL){
 check_barber_uniformity_R <- function(
   n = 30, p = 10, sigma = 1, K = 2,
   linkage = "complete", num_trials = 1000,
-  num_repeats = 20, n_jobs = 8, seed_master = 0
+  num_repeats = 1, n_jobs = 8, seed_master = 0
 ) {
   set.seed(seed_master)
   repeat_seeds <- sample.int(1e8, num_repeats)

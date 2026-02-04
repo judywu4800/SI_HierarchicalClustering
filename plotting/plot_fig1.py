@@ -1,6 +1,12 @@
 import random
 import sys, os
-sys.path.append(os.path.abspath('../src'))
+def get_repo_root():
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    )
+
+REPO_ROOT = get_repo_root()
+sys.path.append(os.path.join(REPO_ROOT, "src"))
 import numpy as np
 import pandas as pd
 from sklearn.datasets import make_blobs
@@ -163,3 +169,4 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(output_dir, f"figure1_K{true_K}.png"),
                 dpi=300, bbox_inches='tight', pad_inches=0.02)
     plt.close()
+    #plt.show()

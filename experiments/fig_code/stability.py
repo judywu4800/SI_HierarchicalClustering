@@ -56,10 +56,10 @@ if __name__ == '__main__':
         penguins_raw["year"].between(2007, 2008))]
     labels = penguins["species"]
     X = penguins[["flipper_length_mm", "bill_length_mm"]].to_numpy()
-    result = compute_stability(X, 2, linkage="complete", tau=0.1, n_runs=500, random_state=0)
+    result = compute_stability(X, 2, linkage="complete", tau=0.1, n_runs=5, random_state=0)
     coor = result["cooccurrence"]
     mean_coor = result["mean_cooccurrence_per_sample"]
     outdir = "../../results/raw"
     os.makedirs(outdir, exist_ok=True)
 
-    np.savetxt(os.path.join(outdir, "cooccurrence.csv"), coor, delimiter=",")
+    np.savetxt(os.path.join(outdir, "cooccurrence1.csv"), coor, delimiter=",")

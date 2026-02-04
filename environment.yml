@@ -1,0 +1,17 @@
+name: sihc
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - joblib
+  - pip
+  - r-base
+  - rpy2
+  - pip:
+      - palmerpenguins

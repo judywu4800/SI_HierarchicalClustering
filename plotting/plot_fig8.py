@@ -1,96 +1,122 @@
 import sys, os
 sys.path.append(os.path.abspath('../src'))
-import glob
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
-if __name__=="__main__":
-    files = glob.glob("../results/raw/k_hat_raw_K_n200_p2_delta6/*.csv")
+
+if __name__ == "__main__":
+    alpha = 0.05
+    tau = 0.1
     output_dir = os.path.join("../results/figures")
     os.makedirs(output_dir, exist_ok=True)
-    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
-    K_list = sorted(df["K_true"].unique())
+    linkages = ["complete", "average", "single", "minimax"]
+    Ks = [2, 3]
 
-    # global x-range
-    global_Kmin = int(df[["K_hat_F", "K_hat_gap"]].min().min())
-    global_Kmax = int(df[["K_hat_F", "K_hat_gap"]].max().max())
+    # === colors ===
+    color_map = {
+        "RAC": "#7B9669",                   # green
+        "Yun and Barber": "#B069DB",                # purple
+         r"Gao et al.": "#F7B718",  # yellow
+         #r"Gao et al.($\widehat{\sigma}_{\text{clustered}}$)": "#8e1b01", # dark red
+        "Expected (Uniform)": "#FF0000"     # red dashed line
+    }
 
-    # prepare for computing global y-limit
-    all_counts = []
+    def plot_ecdf(values, label, color, ax, lw=1.8):
+        x = np.sort(values)
+        y = np.arange(1, len(x) + 1) / len(x)
+        ax.step(x, y, where='post', label=label, color=color, linewidth=lw)
 
-    for Ktrue in K_list:
-        sub = df[df["K_true"] == Ktrue]
-
-        K_F = sub["K_hat_F"]
-        K_gap = sub["K_hat_gap"]
-
-        bins = np.arange(global_Kmin - 0.5, global_Kmax + 1.5, 1)
-
-        counts_F, _ = np.histogram(K_F, bins=bins)
-        counts_G, _ = np.histogram(K_gap, bins=bins)
-
-        all_counts.append(max(counts_F.max(), counts_G.max()))
-
-    y_global = max(all_counts)
-
-    # 2x5 figure
-    fig, axes = plt.subplots(2, 5, figsize=(16, 10), sharey=True)
+    # === Figure setup (2×4 grid, share axes) ===
+    fig, axes = plt.subplots(2, 4, figsize=(14, 7), sharex=False, sharey=False)
     axes = axes.flatten()
 
-    for idx, Ktrue in enumerate(K_list):
-        ax = axes[idx]
-        sub = df[df["K_true"] == Ktrue]
+    all_labels = []
+    handles_for_legend = []
 
-        K_F = sub["K_hat_F"]
-        K_gap = sub["K_hat_gap"]
+    for row_idx, K in enumerate(Ks):
+        for col_idx, linkage in enumerate(linkages):
+            i = row_idx * len(linkages) + col_idx
+            ax = axes[i]
+            print(f"Plotting K={K}, linkage={linkage}")
 
-        bins = np.arange(global_Kmin - 0.5, global_Kmax + 1.5, 1)
+            # --- Randomized (RAC) ---
+            rand_path = f"../results/raw/fig8/pval_validity_randomized_K{K}_{linkage}.csv"
+            if os.path.exists(rand_path):
+                df_rand = pd.read_csv(rand_path)
+                col = f"tau={tau}"
+                if col in df_rand.columns:
+                    h = ax.step(
+                        np.sort(df_rand[col].dropna()),
+                        np.arange(1, df_rand[col].dropna().size + 1) / df_rand[col].dropna().size,
+                        where="post", color=color_map["RAC"], linewidth=1.8,
+                        label="RC(3)" if "RAC" not in all_labels else None
+                    )[0]
+                    if "RAC" not in all_labels:
+                        handles_for_legend.append(h)
+                        all_labels.append("RAC")
 
-        counts_F, edges = np.histogram(K_F, bins=bins)
-        counts_G, _ = np.histogram(K_gap, bins=bins)
+            # --- Gao & Barber (skip minimax) ---
+            if linkage != "minimax":
+                gb_path = f"../results/raw/fig8/pval_valid_gao&barber_K{K}_{linkage}.csv"
+                if os.path.exists(gb_path):
+                    df_gb = pd.read_csv(gb_path)
+                    label_map = {
+                        "Gao (sigma_all)": r"Gao et al.",
+                        "Gao (sigma_clustered)": r"Gao et al.($\widehat{\sigma}_{\text{clustered}}$)",
+                        "Barber": "Yun and Barber"
+                    }
 
-        x = edges.repeat(2)[1:-1]
-        yF = np.repeat(counts_F, 2)
-        yG = -np.repeat(counts_G, 2)
+                    for colname in df_gb.columns:
+                        if colname == "Gao (sigma_clustered)":
+                            continue
+                        label = label_map.get(colname, colname)
+                        color = color_map.get(label, "gray")
+                        h = ax.step(
+                            np.sort(df_gb[colname].dropna()),
+                            np.arange(1, df_gb[colname].dropna().size + 1) / df_gb[colname].dropna().size,
+                            where="post", color=color, linewidth=1.8,
+                            label=label if label not in all_labels else None
+                        )[0]
+                        if label not in all_labels:
+                            handles_for_legend.append(h)
+                            all_labels.append(label)
 
-        ax.fill_between(x, yF, 0, step="pre", alpha=0.7, color="#3A8E7A", edgecolor="black")
-        ax.fill_between(x, yG, 0, step="pre", alpha=0.7, color="#6FB7E9", edgecolor="black")
+            # --- Reference line ---
+            h = ax.plot([0, 1], [0, 1], linestyle="--",
+                        color=color_map["Expected (Uniform)"],
+                        label="Expected (Uniform)" if "Expected" not in all_labels else None)[0]
+            if "Expected" not in all_labels:
+                handles_for_legend.append(h)
+                all_labels.append("Expected")
 
-        ax.axvline(Ktrue, color="red", linestyle="--", linewidth=2)
+            # --- Aesthetics ---
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.grid(True, linestyle="--", alpha=0.4)
 
-        ax.set_xlim(global_Kmin - 0.5, global_Kmax + 0.5)
-        ax.set_xticks(np.arange(global_Kmin, global_Kmax + 1))
+            # labels
+            if row_idx == 1:
+                ax.set_xlabel("p-value", fontsize=13)
+            if col_idx == 0:
+                ax.set_ylabel("ECDF", fontsize=13)
 
-        ax.set_ylim(-1.1 * y_global, 1.1 * y_global)
+            # title includes K
+            ax.set_title(f"({chr(97 + i)}) {linkage.capitalize()} (K = {K})", fontsize=13)
 
-        ax.set_title(rf"$K^*$ = {Ktrue}", fontsize=16)
-        ax.set_xlabel(r"$\widehat{K}$", fontsize=14)
-        ax.tick_params(axis='x', labelsize=9)
-
-        yticks = ax.get_yticks()
-        ax.set_yticklabels([f"{int(abs(y))}" for y in yticks])
-
-    axes[0].set_ylabel("Frequency", fontsize=15)
-    axes[5].set_ylabel("Frequency", fontsize=15)
-    legend_elements = [
-        Patch(facecolor="#3A8E7A", edgecolor="black", label="RC(3)"),
-        Patch(facecolor="#6FB7E9", edgecolor="black", label="Gap Statistics"),
-        Line2D([0], [0], color='red', linestyle='--', linewidth=2, label=r"$K^*$")
-    ]
-
-    # Leave just enough space at bottom
-    fig.subplots_adjust(bottom=0.12, top=0.95, left=0.04, right=0.99, wspace=0.05, hspace=0.3)
-
+    # === Unified legend below ===
     fig.legend(
-        handles=legend_elements,
+        handles_for_legend,
+        [h.get_label() for h in handles_for_legend],
         loc="lower center",
-        ncol=3,
-        fontsize=15,
-        frameon=False,
-        bbox_to_anchor=(0.5, 0.001)
+        bbox_to_anchor=(0.5, -0.01),
+        ncol=5, fontsize=13, frameon=False
     )
-    plt.savefig(os.path.join(output_dir, "fig8.png"), bbox_inches="tight", dpi=500)
+
+    # tighter margins
+    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.subplots_adjust(hspace=0.2, wspace=0.15)
+    save_path = os.path.join(output_dir, "fig8_ECDF_all_linkages_K2_K3.png")
+    plt.savefig(save_path, bbox_inches="tight", dpi=400, pad_inches=0.02)
     plt.close()
+    print(f"Saved figure to {save_path}")

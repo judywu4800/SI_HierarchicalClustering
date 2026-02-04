@@ -16,10 +16,10 @@ if __name__ == "__main__":
     #dfr = pd.read_csv("../results/raw/reject_es-6.csv")
     linkage = "average"
     K=2
-    dfg = pd.read_csv(f"../results/raw/fig6_es2/rejection_es_gao_K{K}_{linkage}.csv")
+    dfg = pd.read_csv(f"../results/raw_old/fig6_es2/rejection_es_gao_K{K}_{linkage}.csv")
     #dfgc = pd.read_csv("../results/raw/fig6_es/rejection_es_gao_clustered_K2.csv")
-    dfb = pd.read_csv(f"../results/raw/fig6_es2/rejection_es_barber_K{K}_{linkage}.csv")
-    dfr = pd.read_csv(f"../results/raw/fig6_es2/reject_effect_size_K{K}_{linkage}.csv")
+    dfb = pd.read_csv(f"../results/raw_old/fig6_es2/rejection_es_barber_K{K}_{linkage}.csv")
+    dfr = pd.read_csv(f"../results/raw_old/fig6_es2/reject_effect_size_K{K}_{linkage}.csv")
 
 
 

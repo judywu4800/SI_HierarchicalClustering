@@ -10,10 +10,10 @@ if __name__ == "__main__":
     #type1_gao = pd.read_csv("../results/raw/type1_gao_by_repeat-2.csv")
     #type1_gao_c = pd.read_csv("../results/raw/type1_gao_c_by_repeat.csv")
     #type1_barber = pd.read_csv("../results/raw/type1_barber_by_repeat-2.csv")
-    type1_gao = pd.read_csv("../results/raw/type1_gao.csv")
-    type1_gao_c = pd.read_csv("../results/raw/type1_gao_clustered.csv")
-    type1_barber = pd.read_csv("../results/raw/type1_barber.csv")
-    type1 = pd.read_csv("../results/raw/type1_error_randomized.csv")
+    type1_gao = pd.read_csv("../results/raw_old/type1_gao.csv")
+    type1_gao_c = pd.read_csv("../results/raw_old/type1_gao_clustered.csv")
+    type1_barber = pd.read_csv("../results/raw_old/type1_barber.csv")
+    type1 = pd.read_csv("../results/raw_old/type1_error_randomized.csv")
 
     alpha = 0.05
 

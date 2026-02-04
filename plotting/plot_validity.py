@@ -8,8 +8,8 @@ import seaborn as sns
 if __name__ == "__main__":
     output_dir = os.path.join("../results/figures")
     #df = pd.read_csv("../results/raw/pval_data_randomized-6.csv")
-    df = pd.read_csv("../results/raw/pval_validity_randomized.csv")
-    df2 = pd.read_csv("../results/raw/pval_valid_gao&barber.csv")
+    df = pd.read_csv("../results/raw_old/pval_validity_randomized.csv")
+    df2 = pd.read_csv("../results/raw_old/pval_valid_gao&barber.csv")
     tau_cols = [c for c in df.columns if c.startswith('tau=')]
     naive = df['naive'].dropna().to_numpy()
     gao = df2['Gao (sigma_all)']

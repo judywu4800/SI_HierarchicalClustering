@@ -10,16 +10,15 @@ __pycache__/
 # =========================
 # Experiment results and logs
 # =========================
-results/
 logs/
 *.out
 *.err
-*.csv
+#*.csv
 *.npz
 *.npy
 *.pkl
-*.png
-*.pdf
+#*.png
+#*.pdf
 
 # =========================
 # IDE or environment files
@@ -36,8 +35,6 @@ logs/
 # Conda / environment / system
 # =========================
 *.lock
-*.yml
-*.yaml
 *.json
 !*.sh
 !*.slurm

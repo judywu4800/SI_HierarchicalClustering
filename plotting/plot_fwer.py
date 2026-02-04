@@ -8,7 +8,7 @@ if __name__ == "__main__":
     total_alpha = 0.05
     output_dir = os.path.join("../results/figures")
     import glob
-    files = glob.glob("../results/raw/fwer/fwer_tau_*.csv")
+    files = glob.glob("../results/raw_old/fwer/fwer_tau_*.csv")
     df_results = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
     df_results["tau_num"] = df_results["tau"].replace("naive", 0).astype(float)
     df_results = df_results.sort_values("tau_num")
