@@ -8,7 +8,7 @@ from scipy.cluster.hierarchy import linkage, leaves_list
 
 if __name__ =='__main__':
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    input_dir = os.path.join(base_dir, "results/raw/penguins")
+    input_dir = os.path.join(base_dir, "results/raw/fig6")
     output_dir = os.path.join(base_dir, "results/figures")
 
     files = sorted(glob.glob(os.path.join(input_dir, "K_trial_*.csv")))
@@ -35,7 +35,7 @@ if __name__ =='__main__':
     #F_y = np.repeat(counts_F, 2)
     #G_y = -np.repeat(counts_G, 2)
 
-    cooccurrence = pd.read_csv(os.path.join(base_dir, "results/raw/penguins/cooccurrence.csv"), header=None).to_numpy()
+    cooccurrence = pd.read_csv(os.path.join(base_dir, "results/raw/fig6/cooccurrence.csv"), header=None).to_numpy()
 
     Z = linkage(cooccurrence, method="complete")
     order = leaves_list(Z)
