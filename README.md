@@ -47,12 +47,12 @@ While most simulations were run on a computing cluster, we provide small-scale l
 
 ```bash 
 make fig1_sim
-make fig3_sim
-make fig4_sim
+make validity_sim
+make power_sim
 make fig5_sim
 make fig6_sim
-make fig8_sim
-make fig9_sim
+make fig10_sim
+make fig11_sim
 ```
 Simulation outputs are saved under:
 ```text
@@ -70,6 +70,8 @@ make figure6
 make figure7
 make figure8
 make figure9
+make figure10
+make figure11
 ```
 Outputs are saved under:
 ```text

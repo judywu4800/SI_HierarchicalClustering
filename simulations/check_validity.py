@@ -29,12 +29,19 @@ if __name__ == "__main__":
     n_jobs = -1
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    output_dir = os.path.join(base_dir, "results/raw/fig3")
+    output_dir = os.path.join(base_dir, "results/raw/validity")
     os.makedirs(output_dir, exist_ok=True)
 
 
     all_p_values, naive_p_values = check_p_value_uniformity_multi_tau_random_pair_parallel(
-        n, p, sigma, K, tau_list, linkage, num_trials, n_jobs
+        n=n,
+        p=p,
+        sigma=sigma,
+        K=K,
+        tau_list=tau_list,
+        linkage=linkage,
+        num_trials=num_trials,
+        n_jobs=n_jobs
     )
 
     df = pd.DataFrame({f"tau={tau}": all_p_values[tau] for tau in tau_list})

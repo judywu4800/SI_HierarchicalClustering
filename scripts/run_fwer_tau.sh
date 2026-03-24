@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fwer_tau
-#SBATCH --output=../../logs/fwer/fwer_tau_%a.out
-#SBATCH --error=../../logs/fwer/fwer_tau_%a.err
+#SBATCH --output=../logs/fwer/fwer_tau_%a.out
+#SBATCH --error=../logs/fwer/fwer_tau_%a.err
 #SBATCH --array=0-7
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=16
@@ -17,7 +17,7 @@ conda activate rac-env
 cd /home/judydw/SI_HierarchicalClustering
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
-python experiments/chooseK_experiments/fwer_tau.py \
+python simulations/fwer_tau.py \
     --tau $TAU \
-    --num_trials 1000 \
-    --outdir results/raw/fwer_90
+    --num_trials 2000 \
+    --outdir results/raw/fwer

@@ -6,7 +6,8 @@ from scipy.interpolate import interp1d, PchipInterpolator
 from scipy.special import gamma, logsumexp
 from scipy.stats import f,chi
 from scipy.linalg import sqrtm
-from scipy.integrate import cumulative_trapezoid
+from scipy.integrate import cumulative_trapezoid, quad
+from scipy.spatial.distance import pdist, squareform
 import os
 #exponential mechanism
 
@@ -23,6 +24,84 @@ class ClusterNode:
     def __repr__(self):
         return f"ClusterNode(points={self.points})"
 
+class _TmpCluster:
+    __slots__ = ("points", "key")
+    def __init__(self, points):
+        pts = tuple(sorted(map(int, points)))
+        self.points = pts
+        self.key = pts
+
+def _offdiag_mean(M):
+    n = M.shape[0]
+    if n <= 1:
+        return 0.0
+    s = M.sum() - np.trace(M)
+    return s / (n * (n - 1))
+
+def _softmax_offdiag_neg(D, tau):
+    A = -D / tau
+    A = A.copy()
+    np.fill_diagonal(A, -np.inf)
+    m = np.max(A[np.isfinite(A)])
+    E = np.exp(A - m)
+    E[~np.isfinite(A)] = 0.0
+    Z = E.sum()
+    return E / Z
+
+def _lw_update_vec(linkage, di, dj, dij, ni, nj, nk):
+    if linkage == "single":
+        return np.minimum(di, dj)
+    if linkage == "complete":
+        return np.maximum(di, dj)
+    if linkage == "average":
+        return (ni * di + nj * dj) / (ni + nj)
+    return None
+
+def _assemble_new_matrix(d_keep, d_new):
+    d_new = np.asarray(d_new, dtype=float).reshape(-1)
+    M = np.vstack([d_new, d_keep])
+    M = np.column_stack([np.r_[0.0, d_new], M])
+    return M
+
+def _delete_ij(M, i, j):
+    idx = [k for k in range(M.shape[0]) if k not in (i, j)]
+    return M[np.ix_(idx, idx)], idx
+
+def _index_by_key(clusters):
+    return {c.key: t for t, c in enumerate(clusters)}
+
+def _merge_clusters(clusters, i, j):
+    if i > j:
+        i, j = j, i
+    ci, cj = clusters[i], clusters[j]
+    new_pts = tuple(sorted(set(ci.points).union(cj.points)))
+    new_c = _TmpCluster(new_pts)
+    keep = [clusters[k] for k in range(len(clusters)) if k not in (i, j)]
+    clusters_new = [new_c] + keep
+    return clusters_new, new_c, ci, cj, keep
+
+def _minimax_radius_from_D(pts, D):
+    P = np.asarray(pts, dtype=int)
+    sub = D[np.ix_(P, P)]
+    return float(np.min(np.max(sub, axis=1)))
+
+def _minimax_linkage_from_D(A_pts, B_pts, D):
+    U = tuple(sorted(set(A_pts).union(B_pts)))
+    return _minimax_radius_from_D(U, D)
+
+def _linkage_from_D(A_pts, B_pts, D, linkage):
+    A = np.asarray(A_pts, dtype=int)
+    B = np.asarray(B_pts, dtype=int)
+    sub = D[np.ix_(A, B)]
+    if linkage == "single":
+        return float(sub.min())
+    if linkage == "complete":
+        return float(sub.max())
+    if linkage == "average":
+        return float(sub.mean())
+    if linkage == "minimax":
+        return _minimax_linkage_from_D(A_pts, B_pts, D)
+    return None
 
 class AgglomerativeClustering:
     def __init__(self, X, sigma = None, n_clusters=2, tau=1, affinity='euclidean', linkage='single', random_state=None):
@@ -431,8 +510,8 @@ class AgglomerativeClustering:
             raise ValueError("One of the clusters is empty.")
 
         # Compute centroids
-        data_new_node = data[new_node.points]
-        data_cluster = data[cluster.points]
+        data_new_node = self._take_rows(data, new_node.points)
+        data_cluster = self._take_rows(data, cluster.points)
         centroid_new = np.mean(data_new_node, axis=0)
         centroid_cluster = np.mean(data_cluster, axis=0)
 
@@ -443,8 +522,8 @@ class AgglomerativeClustering:
         if data is None:
             # data = self.Z
             data = self.X
-        data_new_node = data[new_node.points]
-        data_cluster = data[cluster.points]
+        data_new_node = self._take_rows(data, new_node.points)
+        data_cluster = self._take_rows(data, cluster.points)
         centroid_new = np.mean(data_new_node, axis=0)
         centroid_cluster = np.mean(data_cluster, axis=0)
         return self._calculate_distance(centroid_new, centroid_cluster)
@@ -453,8 +532,8 @@ class AgglomerativeClustering:
         if data is None:
             # data = self.Z
             data = self.X
-        data_new_node = data[new_node.points]
-        data_cluster = data[cluster.points]
+        data_new_node = self._take_rows(data, new_node.points)
+        data_cluster = self._take_rows(data, cluster.points)
         median_new = np.median(data_new_node, axis=0)
         median_cluster = np.median(data_cluster, axis=0)
         return self._calculate_distance(median_new, median_cluster)
@@ -488,39 +567,278 @@ class AgglomerativeClustering:
         nu[G_2] -= 1 / n_G2
         return nu
 
+    def _take_rows(self, data, pts):
+        X = np.asarray(data)
+        idx = np.asarray(pts, dtype=int)
+        return X[idx, :]
+
+    def _sel_correction_F_r_fast(self, node, r, P2, R0, R1, S):
+        p1, p2 = node.left, node.right
+        m = len(p1.points) + len(p2.points)
+        if m <= 2:
+            return 0.0
+
+        all_winning_pairs = self.get_all_winning_pairs()
+
+        def find_current_step(a, b):
+            for idx, key in enumerate(self.existing_clusters_log.keys()):
+                if key == (a, b) or key == (b, a):
+                    return idx + 1
+            return -1
+
+        t = find_current_step(p1, p2)
+        if t <= 0:
+            return 0.0
+
+        win_keys = []
+        for s in range(t):
+            a, b = all_winning_pairs[s]
+            win_keys.append((tuple(sorted(a.points)), tuple(sorted(b.points))))
+
+        r = float(r)
+        a = np.sqrt(r / (m - 2 + r))
+        b = np.sqrt((m - 2) / (m - 2 + r))
+        X_new = (a * R0 + b * R1) * np.sqrt(S) + P2 @ self.X
+
+        D = squareform(pdist(X_new, metric=self.affinity))
+        d_clusts = D.copy()
+
+
+        clusters = [_TmpCluster((i,)) for i in range(self.n)]
+        sizes = [1] * self.n
+
+        logp = 0.0
+
+        for s in range(t):
+            key_to_idx = _index_by_key(clusters)
+            k1, k2 = win_keys[s]
+            i = key_to_idx[k1]
+            j = key_to_idx[k2]
+
+            tau_s = self.tau * _offdiag_mean(d_clusts)
+            if tau_s <= 0:
+                tau_s = 1e-12
+            probs = _softmax_offdiag_neg(d_clusts, tau_s)
+            logp += np.log(probs[i, j] + probs[j, i])
+
+            if s == t - 1:
+                break
+
+            ni, nj = sizes[i], sizes[j]
+            dij = d_clusts[i, j]
+
+            di = d_clusts[i, :].copy()
+            dj = d_clusts[j, :].copy()
+
+            d_keep, keep_idx = _delete_ij(d_clusts, i, j)
+
+            clusters_new, new_c, ci, cj, keep_clusters = _merge_clusters(clusters, i, j)
+            sizes_keep = [sizes[k] for k in range(len(sizes)) if k not in (i, j)]
+            sizes_new = [ni + nj] + sizes_keep
+
+            if self.linkage in ("single", "complete", "average"):
+                d_new = _lw_update_vec(self.linkage, di[keep_idx], dj[keep_idx], dij, ni, nj, None)
+            else:
+                d_new = None
+
+            if d_new is None:
+                d_new = []
+                for c in keep_clusters:
+                    val = _linkage_from_D(new_c.points, c.points, D, self.linkage)
+                    if val is None:
+                        val = float(self._calculate_linkage_distance(new_c, c, X_new))
+                    d_new.append(val)
+
+            d_clusts = _assemble_new_matrix(d_keep, d_new)
+            clusters = clusters_new
+            sizes = sizes_new
+
+        return logp
+
+    def merge_inference_F(self, node, limit=200):
+        def create_indicator_diagonal_matrix(index_list, n):
+            diag = np.zeros(n)
+            diag[index_list] = 1
+            return np.diag(diag), diag
+
+        nu = self.compute_nu(node).reshape(-1, 1)
+        p_node_1 = node.left
+        p_node_2 = node.right
+        m = len(p_node_1.points) + len(p_node_2.points)
+
+        if m == 2:
+            return (np.nan, np.nan)
+
+        P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+        I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+        I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+        one1 = one1.reshape(-1, 1)
+        one2 = one2.reshape(-1, 1)
+        P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+        P2 = np.eye(self.n) - P0 - P1
+
+        S = np.linalg.norm(P0 @ self.X, 'fro') ** 2 + np.linalg.norm(P1 @ self.X, 'fro') ** 2
+        R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
+        R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
+
+        observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+        dfn = self.p
+        dfd = self.p * (m - 2)
+
+        if self.tau == 0:
+            def integrand(r):
+                r = float(r)
+                return float(np.exp(f.logpdf(x=r, dfn=dfn, dfd=dfd)))
+        else:
+            def integrand(r):
+                r = float(r)
+                lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_r_fast(node, r, P2, R0, R1, S)
+                return float(np.exp(lp))
+
+        # Try without stabilization first
+        f0 = integrand(float(observed_target))
+
+        # Check for underflow on a small grid
+        xs = np.linspace(0.0, max(1.0, observed_target), 50)
+        vals = np.array([integrand(x) for x in xs])
+        finite_vals = vals[np.isfinite(vals)]
+
+
+        # If we have underflow, switch to stabilized version
+        if finite_vals.size == 0 or np.all(vals == 0):
+            # Find log_max
+            if self.tau == 0:
+                log_vals = f.logpdf(x=xs, dfn=dfn, dfd=dfd)
+            else:
+                log_vals = np.array([
+                    f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_r_fast(node, r, P2, R0, R1, S)
+                    for r in xs
+                ])
+
+            finite_mask = np.isfinite(log_vals)
+            if not np.any(finite_mask):
+                return np.nan, observed_target
+
+            log_max = np.max(log_vals[finite_mask])
+
+            # Stabilized integrand
+            if self.tau == 0:
+                def integrand_stable(r):
+                    r = float(r)
+                    lp = f.logpdf(x=r, dfn=dfn, dfd=dfd)
+                    return float(np.exp(lp - log_max)) if np.isfinite(lp) else 0.0
+            else:
+                def integrand_stable(r):
+                    r = float(r)
+                    lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_r_fast(node, r, P2, R0, R1, S)
+                    return float(np.exp(lp - log_max)) if np.isfinite(lp) else 0.0
+
+            num, _ = quad(integrand_stable, 0.0, float(observed_target), limit=limit, epsrel=1e-5)
+            extra, _ = quad(integrand_stable, float(observed_target), np.inf, limit=limit, epsrel=1e-5)
+        else:
+            # No underflow, use original approach
+            num, _ = quad(integrand, 0.0, float(observed_target), limit=limit, epsrel=1e-5)
+            extra, _ = quad(integrand, float(observed_target), np.inf, limit=limit, epsrel=1e-5)
+
+        if num + extra == 0:
+            return np.nan, observed_target
+
+        p_value = extra / (extra + num)
+
+        return (p_value, observed_target)
+
+        '''
+        
+        if self.tau == 0:
+            def log_integrand(r):
+                r = float(r)
+                return f.logpdf(x=r, dfn=dfn, dfd=dfd)
+        else:
+            def log_integrand(r):
+                r = float(r)
+                lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_r_fast(node, r, P2, R0, R1, S)
+                return lp
+
+        # Find the maximum log value for numerical stability
+        xs = np.linspace(0.0, max(1.0, observed_target * 3), 200)
+        log_vals = np.array([log_integrand(x) for x in xs])
+        finite_mask = np.isfinite(log_vals)
+
+        if not np.any(finite_mask):
+            return np.nan, observed_target
+
+        log_max = np.max(log_vals[finite_mask])
+
+        # Integrand in original scale, but stabilized
+        def integrand_stabilized(x):
+            log_val = log_integrand(x)
+            if not np.isfinite(log_val):
+                return 0.0
+            # Subtract log_max to prevent underflow
+            return np.exp(log_val - log_max)
+
+        # Integrate [0, observed_target]
+        num, num_err = quad(
+            integrand_stabilized,
+            0.0,
+            float(observed_target),
+            limit=limit,
+            epsrel = 1e-5
+        )
+
+        # Integrate [observed_target, inf]
+        extra, extra_err = quad(
+            integrand_stabilized,
+            float(observed_target),
+            np.inf,
+            limit=limit,
+            epsrel = 1e-5
+        )
+
+        # The log_max cancels out in the ratio
+        if num + extra == 0:
+            return np.nan, observed_target
+
+        p_value = extra / (extra + num)
+
+        return (p_value, observed_target)
+        
+        '''
+
+
     def _sel_correction_F(self, node, grid, P2, R0, R1, S):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
         # grid: each value is a grid value
 
-        def find_current_step(node1,node2):
+        def find_current_step(node1, node2):
             dictionary = self.existing_clusters_log
             for idx, key in enumerate(dictionary.keys()):
-                if (key == (node1,node2)) or (key == (node2,node1)):
+                if (key == (node1, node2)) or (key == (node2, node1)):
                     return idx + 1
             return -1
 
-        #get the parent clusters of the given node
+        # get the parent clusters of the given node
         p_node_1 = node.left
         p_node_2 = node.right
         m = len(p_node_1.points) + len(p_node_2.points)
         nu = self.compute_nu(node)
         nu_norm = np.linalg.norm(nu)
-        #print("m: ",m)
+        # print("m: ",m)
         current_step = find_current_step(p_node_1, p_node_2)
-        #print("current step: {}".format(current_step))
+        # print("current step: {}".format(current_step))
         all_winning_pairs = self.get_all_winning_pairs()
-        #print("all winning pairs: {}".format(all_winning_pairs))
+        # print("all winning pairs: {}".format(all_winning_pairs))
 
-        cor_prob = np.zeros_like(grid) #for each grid value, cor_prob[g] = \sum (p(\hat{s}^{(t)}|X(g)))
-        G_w_1 = p_node_1  #G^{(t)}_1 and G^{(t)}_2
+        cor_prob = np.zeros_like(grid)  # for each grid value, cor_prob[g] = \sum (p(\hat{s}^{(t)}|X(g)))
+        G_w_1 = p_node_1  # G^{(t)}_1 and G^{(t)}_2
         G_w_2 = p_node_2
-        s = current_step  #going from top level to the beginning
-        corrections = np.zeros((len(grid),s))
+        s = current_step  # going from top level to the beginning
+        corrections = np.zeros((len(grid), s))
         while s > 0:
-            #print("level: ", s)
+            # print("level: ", s)
             merged_pair = (G_w_1, G_w_2)
-            #print("winning pair at this step: ", merged_pair)
+            # print("winning pair at this step: ", merged_pair)
             merged_pair_r = (G_w_2, G_w_1)
             # to get all the existing cluster at this step
             if merged_pair in self.existing_clusters_log.keys():
@@ -530,11 +848,12 @@ class AgglomerativeClustering:
 
             for g_idx, g in enumerate(grid):
                 # get the reconstructed X_grid from grid value
-                #print("grid value: ", g)
-                cor_scores = [] #the vector [p_1,....,p_d], first item is always the optimal
+                # print("grid value: ", g)
+                cor_scores = []  # the vector [p_1,....,p_d], first item is always the optimal
                 Ds_grid = []
-                X_grid = (np.sqrt((g)/(m-2+(g))) * R0 + np.sqrt((m-2)/(m-2+(g))) * R1) *np.sqrt(S) + P2 @ self.X
-                D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  #D(\hat{G}_1, \hat{G}_2; X_grid)
+                X_grid = (np.sqrt((g) / (m - 2 + (g))) * R0 + np.sqrt((m - 2) / (m - 2 + (g))) * R1) * np.sqrt(
+                    S) + P2 @ self.X
+                D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  # D(\hat{G}_1, \hat{G}_2; X_grid)
                 Ds_grid.append(D_opt_grid)
 
                 pairs = combinations(clusters_s, 2)
@@ -544,197 +863,25 @@ class AgglomerativeClustering:
                         Ds_grid.append(D_grid)
 
                 tau_t_grid = self.tau * np.mean(Ds_grid)
-                cor_scores = [np.exp(-(1/tau_t_grid) *  D_grid) for D_grid in Ds_grid]
-                cor_scores = (cor_scores / np.sum(cor_scores)) #normalization
-                #cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
+                cor_scores = [np.exp(-(1 / tau_t_grid) * D_grid) for D_grid in Ds_grid]
+                cor_scores = (cor_scores / np.sum(cor_scores))  # normalization
+                # cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
                 cor_prob[g_idx] = np.log(cor_scores[0])
-                #cor_prob[g_idx] += np.log(cor_scores[0])
-                #print("cor_prob: ", cor_prob[g_idx])
+                # cor_prob[g_idx] += np.log(cor_scores[0])
+                # print("cor_prob: ", cor_prob[g_idx])
 
-            corrections[:,s-1] += cor_prob
+            corrections[:, s - 1] += cor_prob
 
-            if s>1:
-                winning_pair_s = all_winning_pairs[s - 2] #get the winning pair of previous level
+            if s > 1:
+                winning_pair_s = all_winning_pairs[s - 2]  # get the winning pair of previous level
                 G_w_1 = winning_pair_s[0]
                 G_w_2 = winning_pair_s[1]
 
             s -= 1
         return np.array(corrections)
-        #return np.array(cor_prob)
-    def merge_inference_F(self, node, ngrid = 10000, ncoarse = 20, grid_width = 15):
-        def create_indicator_diagonal_matrix(index_list, n):
-            diag = np.zeros(n)
-            diag[index_list] = 1
-            return np.diag(diag), diag
+        # return np.array(cor_prob)
 
-        if self.tau!=0:
-            nu = self.compute_nu(node).reshape(-1,1)
-            p_node_1 = node.left
-            p_node_2 = node.right
-            m = len(p_node_1.points)+len(p_node_2.points)
-            if m==2:
-                p_value = np.nan
-                observed_target = np.nan
-                sel_probs = np.nan
-
-            else:
-                P0 = nu@nu.T / np.linalg.norm(nu)**2
-                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points,self.n)
-                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points,self.n)
-                one1 = one1.reshape(-1,1)
-                one2 = one2.reshape(-1,1)
-                P1 = (I1 - one1@one1.T / len(p_node_1.points)) + (I2 - one2@one2.T / len(p_node_2.points))
-                P2 = np.eye(self.n) - P0 - P1
-
-                S = np.linalg.norm(P0 @ self.X, 'fro')**2 + np.linalg.norm(P1 @ self.X, 'fro')**2
-                R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
-                R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
-
-                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
-                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (np.linalg.norm(P1 @ self.X,'fro') ** 2)
-                #print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
-                #print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
-                #print(observed_target)
-                #print("Are they close?", np.allclose(self.X, (np.sqrt(observed_target/(m-2+observed_target)) * R0 + np.sqrt((m-2)/(m-2+observed_target)) * R1) *np.sqrt(S) + P2 @ self.X))
-                #projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
-                #print("Projection error (should be close to 0):", projection_error)
-                #print("obs:",observed_target)
-                if ncoarse is not None:
-                    coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
-                    eval_grid = coarse_grid
-                else:
-                    eval_grid = stat_grid
-
-                if ncoarse is None:
-                    sel_probs = self._sel_correction_F(node,stat_grid,P2, R0, R1, S)
-                    p = self.p
-                    log_prior = np.zeros(ngrid)
-                    for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=stat_grid[g], dfn=p, dfd=(m - 2) * p)
-                    log_post = log_prior + sel_probs
-                    posterior = np.exp(log_post)
-
-                    sum = 0
-                    num = 0
-                    for g in range(ngrid):
-                        sum += posterior[g]
-                        if stat_grid[g] >= observed_target:
-                            num += posterior[g]
-                    p_value = num/sum
-                else:
-                    sel_probs_coarse = self._sel_correction_F(node,eval_grid,P2, R0, R1, S)
-                    step = sel_probs_coarse.shape[1]
-
-                    grid = np.linspace(0.00001, grid_width, num=ngrid)
-                    sel_probs = np.zeros(ngrid)
-                    log_prior = np.zeros(ngrid)
-                    p = self.p
-
-
-                    '''
-                    for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
-                    for s in range(step):
-                        approx_fn = interp1d(eval_grid,
-                                         sel_probs_coarse[:,s],
-                                         kind='quadratic',
-                                         bounds_error=False,
-                                         fill_value='extrapolate')
-                        #for g in range(ngrid):
-                            #sel_probs[g] += approx_fn(grid[g]) #selection probability
-                    '''
-                    log_prior = f.logpdf(x=grid, dfn=p, dfd=(m - 2) * p)
-
-                    interpolation = np.array([
-                        interp1d(eval_grid, sel_probs_coarse[:,s],
-                                 kind='quadratic',
-                                 bounds_error=False,
-                                 fill_value='extrapolate')(grid)
-                        for s in range(step)
-                    ])
-                    sel_probs = interpolation.sum(axis=0)
-                    '''
-                    approx_fn = interp1d(eval_grid,
-                                         sel_probs_coarse,
-                                         kind='quadratic',
-                                         bounds_error=False,
-                                         fill_value='extrapolate')
-                                         
-                                        for g in range(ngrid):
-                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
-                        sel_probs[g] = approx_fn(grid[g])
-                    '''
-                    log_post = log_prior + sel_probs
-                    posterior = np.exp(log_post)
-
-
-                    posterior = posterior / np.max(posterior)
-                    sum = 0
-                    num = 0
-                    for g in range(ngrid):
-                        sum += posterior[g]
-                        if grid[g] >= (observed_target):
-                            num += posterior[g]
-                    p_value = num/sum
-        else:
-            nu = self.compute_nu(node).reshape(-1, 1)
-            p_node_1 = node.left
-            p_node_2 = node.right
-            m = len(p_node_1.points) + len(p_node_2.points)
-            if m==2:
-                p_value = np.nan
-                observed_target = np.nan
-                sel_probs = np.nan
-            else:
-                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
-                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
-                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
-                one1 = one1.reshape(-1,1)
-                one2 = one2.reshape(-1,1)
-                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
-
-                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
-                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / np.linalg.norm(P1 @ self.X,
-                                                                                                     'fro') ** 2
-
-                sel_probs = 0
-                p = self.p
-                posterior = np.zeros(ngrid)
-                for g in range(ngrid):
-                    posterior[g] = f.pdf(stat_grid[g],p,(m-2)*p)
-
-                sum = 0
-                num = 0
-                for g in range(ngrid):
-                    sum += posterior[g]
-                    if stat_grid[g] >= observed_target:
-                        num += posterior[g]
-                p_value = num / sum
-
-        return (p_value, observed_target, sel_probs)
-
-    def merge_inference_F_grid(self, node, ngrid=10000, ncoarse=20, grid_width=15):
-        def get_fine_grid(cdf, grid, qlow = 0.005, qhigh = 0.995,buffer = 3):
-            low = np.interp(qlow, cdf, grid)
-            high = np.interp(qhigh, cdf, grid)
-            width = high - low
-            low = max(grid.min(), low - buffer * width)
-            high = min(grid.max(), high + buffer * width)
-            #print(low,high)
-            return low, high
-
-        def get_corrected_cdf(sel_probs, dfn, dfd, grid):
-            sel_log = np.asarray(sel_probs).reshape(-1)
-            log_prior = f.logpdf(grid, dfn, dfd)
-            log_post = log_prior + sel_log
-            dx = np.gradient(grid)
-            unnorm = np.exp(log_post - log_post.max())
-            Z = (unnorm * dx).sum() + 1e-300
-            corr_pdf = unnorm / Z
-            w = corr_pdf * dx
-            cdf = np.cumsum(w)
-            cdf /= cdf[-1]
-            return cdf
+    def merge_inference_F_interpolation(self, node, ngrid=10000, ncoarse=20, grid_width=15):
         def create_indicator_diagonal_matrix(index_list, n):
             diag = np.zeros(n)
             diag[index_list] = 1
@@ -766,6 +913,179 @@ class AgglomerativeClustering:
                 stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
                 observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
                             np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                # print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
+                # print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                # print(observed_target)
+                # print("Are they close?", np.allclose(self.X, (np.sqrt(observed_target/(m-2+observed_target)) * R0 + np.sqrt((m-2)/(m-2+observed_target)) * R1) *np.sqrt(S) + P2 @ self.X))
+                # projection_error = np.linalg.norm((np.eye(self.n) - np.outer(nu, nu) / np.linalg.norm(nu) ** 2) @ nu)
+                # print("Projection error (should be close to 0):", projection_error)
+                # print("obs:",observed_target)
+                if ncoarse is not None:
+                    coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
+                    eval_grid = coarse_grid
+                else:
+                    eval_grid = stat_grid
+
+                if ncoarse is None:
+                    sel_probs = self._sel_correction_F(node, stat_grid, P2, R0, R1, S)
+                    p = self.p
+                    log_prior = np.zeros(ngrid)
+                    for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=stat_grid[g], dfn=p, dfd=(m - 2) * p)
+                    log_post = log_prior + sel_probs
+                    posterior = np.exp(log_post)
+
+                    sum = 0
+                    num = 0
+                    for g in range(ngrid):
+                        sum += posterior[g]
+                        if stat_grid[g] >= observed_target:
+                            num += posterior[g]
+                    p_value = num / sum
+                else:
+                    sel_probs_coarse = self._sel_correction_F(node, eval_grid, P2, R0, R1, S)
+                    step = sel_probs_coarse.shape[1]
+
+                    grid = np.linspace(0.00001, grid_width, num=ngrid)
+                    sel_probs = np.zeros(ngrid)
+                    log_prior = np.zeros(ngrid)
+                    p = self.p
+
+                    '''
+                    for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
+                    for s in range(step):
+                        approx_fn = interp1d(eval_grid,
+                                         sel_probs_coarse[:,s],
+                                         kind='quadratic',
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+                        #for g in range(ngrid):
+                            #sel_probs[g] += approx_fn(grid[g]) #selection probability
+                    '''
+                    log_prior = f.logpdf(x=grid, dfn=p, dfd=(m - 2) * p)
+
+                    interpolation = np.array([
+                        interp1d(eval_grid, sel_probs_coarse[:, s],
+                                 kind='quadratic',
+                                 bounds_error=False,
+                                 fill_value='extrapolate')(grid)
+                        for s in range(step)
+                    ])
+                    sel_probs = interpolation.sum(axis=0)
+                    '''
+                    approx_fn = interp1d(eval_grid,
+                                         sel_probs_coarse,
+                                         kind='quadratic',
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+
+                                        for g in range(ngrid):
+                        log_prior[g] = f.logpdf(x=grid[g], dfn=p, dfd=(m - 2) * p)
+                        sel_probs[g] = approx_fn(grid[g])
+                    '''
+                    log_post = log_prior + sel_probs
+                    posterior = np.exp(log_post)
+
+                    posterior = posterior / np.max(posterior)
+                    sum = 0
+                    num = 0
+                    for g in range(ngrid):
+                        sum += posterior[g]
+                        if grid[g] >= (observed_target):
+                            num += posterior[g]
+                    p_value = num / sum
+        else:
+            nu = self.compute_nu(node).reshape(-1, 1)
+            p_node_1 = node.left
+            p_node_2 = node.right
+            m = len(p_node_1.points) + len(p_node_2.points)
+            if m == 2:
+                p_value = np.nan
+                observed_target = np.nan
+                sel_probs = np.nan
+            else:
+                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+                one1 = one1.reshape(-1, 1)
+                one2 = one2.reshape(-1, 1)
+                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / np.linalg.norm(P1 @ self.X,
+                                                                                                     'fro') ** 2
+
+                sel_probs = 0
+                p = self.p
+                posterior = np.zeros(ngrid)
+                for g in range(ngrid):
+                    posterior[g] = f.pdf(stat_grid[g], p, (m - 2) * p)
+
+                sum = 0
+                num = 0
+                for g in range(ngrid):
+                    sum += posterior[g]
+                    if stat_grid[g] >= observed_target:
+                        num += posterior[g]
+                p_value = num / sum
+
+        return (p_value, observed_target, sel_probs)
+
+    def merge_inference_F_grid(self, node, ngrid=10000, ncoarse=20, grid_width=15):
+        def get_fine_grid(cdf, grid, qlow=0.005, qhigh=0.995, buffer=3):
+            low = np.interp(qlow, cdf, grid)
+            high = np.interp(qhigh, cdf, grid)
+            width = high - low
+            low = max(grid.min(), low - buffer * width)
+            high = min(grid.max(), high + buffer * width)
+            # print(low,high)
+            return low, high
+
+        def get_corrected_cdf(sel_probs, dfn, dfd, grid):
+            sel_log = np.asarray(sel_probs).reshape(-1)
+            log_prior = f.logpdf(grid, dfn, dfd)
+            log_post = log_prior + sel_log
+            dx = np.gradient(grid)
+            unnorm = np.exp(log_post - log_post.max())
+            Z = (unnorm * dx).sum() + 1e-300
+            corr_pdf = unnorm / Z
+            w = corr_pdf * dx
+            cdf = np.cumsum(w)
+            cdf /= cdf[-1]
+            return cdf
+
+        def create_indicator_diagonal_matrix(index_list, n):
+            diag = np.zeros(n)
+            diag[index_list] = 1
+            return np.diag(diag), diag
+
+        if self.tau != 0:
+            nu = self.compute_nu(node).reshape(-1, 1)
+            p_node_1 = node.left
+            p_node_2 = node.right
+            m = len(p_node_1.points) + len(p_node_2.points)
+            if m == 2:
+                p_value = np.nan
+                observed_target = np.nan
+                sel_probs = np.nan
+
+            else:
+                P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+                I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+                I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+                one1 = one1.reshape(-1, 1)
+                one2 = one2.reshape(-1, 1)
+                P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+                P2 = np.eye(self.n) - P0 - P1
+
+                S = np.linalg.norm(P0 @ self.X, 'fro') ** 2 + np.linalg.norm(P1 @ self.X, 'fro') ** 2
+                R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
+                R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
+
+                stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
+                observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
+                        np.linalg.norm(P1 @ self.X, 'fro') ** 2)
                 if ncoarse is not None:
                     coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
                     eval_grid = coarse_grid
@@ -822,9 +1142,9 @@ class AgglomerativeClustering:
                     log_prior = f.logpdf(x=fine_grid, dfn=dfn, dfd=dfd)
                     sel_probs = interpolation.sum(axis=0)
                     log_post = log_prior + sel_probs
-                    #posterior = np.exp(log_post)
+                    # posterior = np.exp(log_post)
 
-                    #posterior = posterior / np.max(posterior)
+                    # posterior = posterior / np.max(posterior)
                     log_post_shift = log_post - np.max(log_post)
                     posterior = np.exp(log_post_shift)
                     posterior_sum = posterior.sum()
@@ -835,7 +1155,7 @@ class AgglomerativeClustering:
                         posterior = posterior / posterior_sum
                     sum = 0
                     num = 0
-                    for g in range(ngrid*2):
+                    for g in range(ngrid * 2):
                         sum += posterior[g]
                         if fine_grid[g] >= (observed_target):
                             num += posterior[g]
@@ -1134,7 +1454,7 @@ class AgglomerativeClustering:
         nu[G_1] += 1 / n_G1
         nu[G_2] -= 1 / n_G2
         return nu
-    def _sel_correction_F_random_pair(self, c1, c2,grid, P2, R0, R1, S):
+    def _sel_correction_F_random_pair_fast(self, c1, c2,r, P2, R0, R1, S):
 
         # node: a ClusterNode saving point, left, right, distance between merged, depth
         # grid: each value is a grid value
@@ -1155,70 +1475,231 @@ class AgglomerativeClustering:
         nu = self.compute_nu_pair(c1,c2)
         nu_norm = np.linalg.norm(nu)
         # print("m: ",m)
-        current_step = find_current_step(winning_pair[0], winning_pair[1])
+        t = find_current_step(winning_pair[0], winning_pair[1])
+        if t <= 0:
+            return 0.0
         # print("current step: {}".format(current_step))
         all_winning_pairs = self.get_all_winning_pairs()
         # print("all winning pairs: {}".format(all_winning_pairs))
 
-        cor_prob = np.zeros_like(grid)  # for each grid value, cor_prob[g] = \sum (p(\hat{s}^{(t)}|X(g)))
-        G_w_1 = winning_pair[0] # G^{(t)}_1 and G^{(t)}_2
-        G_w_2 = winning_pair[1]
-        s = current_step  # going from top level to the beginning
-        corrections = np.zeros((len(grid), s))
-        while s > 0:
-            # print("level: ", s)
-            merged_pair = (G_w_1, G_w_2)
-            # print("winning pair at this step: ", merged_pair)
-            merged_pair_r = (G_w_2, G_w_1)
-            # to get all the existing cluster at this step
-            if merged_pair in self.existing_clusters_log.keys():
-                clusters_s = self.existing_clusters_log[merged_pair]
+        win_keys = []
+        for s in range(t):
+            a, b = all_winning_pairs[s]
+            win_keys.append((tuple(sorted(a.points)), tuple(sorted(b.points))))
+
+        r = float(r)
+        a = np.sqrt(r / (m - 2 + r))
+        b = np.sqrt((m - 2) / (m - 2 + r))
+        X_new = (a * R0 + b * R1) * np.sqrt(S) + P2 @ self.X
+
+        D = squareform(pdist(X_new, metric=self.affinity))
+        d_clusts = D.copy()
+
+        clusters = [_TmpCluster((i,)) for i in range(self.n)]
+        sizes = [1] * self.n
+
+        logp = 0.0
+
+        for s in range(t):
+            key_to_idx = _index_by_key(clusters)
+            k1, k2 = win_keys[s]
+            i = key_to_idx[k1]
+            j = key_to_idx[k2]
+
+            tau_s = self.tau * _offdiag_mean(d_clusts)
+            if tau_s <= 0:
+                tau_s = 1e-12
+            probs = _softmax_offdiag_neg(d_clusts, tau_s)
+            logp += np.log(probs[i, j] + probs[j, i])
+
+            if s == t - 1:
+                break
+
+            ni, nj = sizes[i], sizes[j]
+            dij = d_clusts[i, j]
+
+            di = d_clusts[i, :].copy()
+            dj = d_clusts[j, :].copy()
+
+            d_keep, keep_idx = _delete_ij(d_clusts, i, j)
+
+            clusters_new, new_c, ci, cj, keep_clusters = _merge_clusters(clusters, i, j)
+            sizes_keep = [sizes[k] for k in range(len(sizes)) if k not in (i, j)]
+            sizes_new = [ni + nj] + sizes_keep
+
+            d_new = _lw_update_vec(self.linkage, di[keep_idx], dj[keep_idx], dij, ni, nj, None)
+
+            if d_new is None:
+                d_new = []
+                for c in keep_clusters:
+                    val = _linkage_from_D(new_c.points, c.points, D, self.linkage)
+                    if val is None:
+                        val = float(self._calculate_linkage_distance(new_c, c, X_new))
+                    d_new.append(val)
+
+            d_clusts = _assemble_new_matrix(d_keep, d_new)
+            clusters = clusters_new
+            sizes = sizes_new
+
+        return logp
+
+    def merge_inference_F_random_pair(self, c1,c2, limit=50):
+        def create_indicator_diagonal_matrix(index_list, n):
+            diag = np.zeros(n)
+            diag[index_list] = 1
+            return np.diag(diag), diag
+        nu = self.compute_nu_pair(c1,c2).reshape(-1,1)
+        p_node_1 = c1
+        p_node_2 = c2
+        m = len(p_node_1.points) + len(p_node_2.points)
+
+        if m == 2:
+            return (np.nan, np.nan)
+
+        P0 = nu @ nu.T / np.linalg.norm(nu) ** 2
+        I1, one1 = create_indicator_diagonal_matrix(p_node_1.points, self.n)
+        I2, one2 = create_indicator_diagonal_matrix(p_node_2.points, self.n)
+        one1 = one1.reshape(-1, 1)
+        one2 = one2.reshape(-1, 1)
+        P1 = (I1 - one1 @ one1.T / len(p_node_1.points)) + (I2 - one2 @ one2.T / len(p_node_2.points))
+        P2 = np.eye(self.n) - P0 - P1
+
+        S = np.linalg.norm(P0 @ self.X, 'fro') ** 2 + np.linalg.norm(P1 @ self.X, 'fro') ** 2
+        R0 = (P0 @ self.X) / np.linalg.norm(P0 @ self.X, 'fro')
+        R1 = (P1 @ self.X) / np.linalg.norm(P1 @ self.X, 'fro')
+
+        observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+        dfn = self.p
+        dfd = self.p * (m - 2)
+        if self.tau == 0:
+            def integrand(r):
+                r = float(r)
+                return float(np.exp(f.logpdf(x=r, dfn=dfn, dfd=dfd)))
+        else:
+            def integrand(r):
+                r = float(r)
+                lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_random_pair_fast(c1,c2, r, P2, R0, R1, S)
+                return float(np.exp(lp))
+
+        # Try without stabilization first
+        f0 = integrand(float(observed_target))
+
+        # Check for underflow on a small grid
+        xs = np.linspace(0.0, max(1.0, observed_target), 50)
+        vals = np.array([integrand(x) for x in xs])
+        finite_vals = vals[np.isfinite(vals)]
+
+        # If we have underflow, switch to stabilized version
+        if finite_vals.size == 0 or np.all(vals == 0):
+            # Find log_max
+            if self.tau == 0:
+                log_vals = f.logpdf(x=xs, dfn=dfn, dfd=dfd)
             else:
-                clusters_s = self.existing_clusters_log[merged_pair_r]
+                log_vals = np.array([
+                    f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_random_pair_fast(c1,c2, r, P2, R0, R1, S)
+                    for r in xs
+                ])
 
-            for g_idx, g in enumerate(grid):
-                # get the reconstructed X_grid from grid value
-                # print("grid value: ", g)
-                cor_scores = []  # the vector [p_1,....,p_d], first item is always the optimal
-                Ds_grid = []
-                X_grid = (np.sqrt((g) / (m - 2 + (g))) * R0 + np.sqrt((m - 2) / (m - 2 + (g))) * R1) * np.sqrt(
-                    S) + P2 @ self.X
-                D_opt_grid = self._calculate_linkage_distance(G_w_1, G_w_2, X_grid)  # D(\hat{G}_1, \hat{G}_2; X_grid)
-                Ds_grid.append(D_opt_grid)
+            finite_mask = np.isfinite(log_vals)
+            if not np.any(finite_mask):
+                return np.nan, observed_target
 
-                pairs = combinations(clusters_s, 2)
-                for cluster1, cluster2 in pairs:
-                    if not ((G_w_1 == cluster1 and G_w_2 == cluster2) or (G_w_2 == cluster1 and G_w_1 == cluster2)):
-                        D_grid = self._calculate_linkage_distance(cluster1, cluster2, X_grid)
-                        Ds_grid.append(D_grid)
+            log_max = np.max(log_vals[finite_mask])
 
-                tau_t_grid = self.tau * np.mean(Ds_grid)
-                cor_scores = [np.exp(-(1 / tau_t_grid) * D_grid) for D_grid in Ds_grid]
-                cor_scores = (cor_scores / np.sum(cor_scores))  # normalization
-                # cor_scores[0] = exp(-1\e*d(s_hat;X(u)))/ sum_s exp(-1/e*d(s;X(u))) = P(s_hat|X(u))
-                cor_prob[g_idx] = np.log(cor_scores[0])
-                # cor_prob[g_idx] += np.log(cor_scores[0])
-                # print("cor_prob: ", cor_prob[g_idx])
+            # Stabilized integrand
+            if self.tau == 0:
+                def integrand_stable(r):
+                    r = float(r)
+                    lp = f.logpdf(x=r, dfn=dfn, dfd=dfd)
+                    return float(np.exp(lp - log_max)) if np.isfinite(lp) else 0.0
+            else:
+                def integrand_stable(r):
+                    r = float(r)
+                    lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_random_pair_fast(c1, c2, r, P2, R0, R1, S)
+                    return float(np.exp(lp - log_max)) if np.isfinite(lp) else 0.0
 
-            corrections[:, s - 1] += cor_prob
+            num, _ = quad(integrand_stable, 0.0, float(observed_target), limit=limit, epsrel=1e-5)
+            extra, _ = quad(integrand_stable, float(observed_target), np.inf, limit=limit, epsrel=1e-5)
+        else:
+            # No underflow, use original approach
+            num, _ = quad(integrand, 0.0, float(observed_target), limit=limit, epsrel=1e-5)
+            extra, _ = quad(integrand, float(observed_target), np.inf, limit=limit, epsrel=1e-5)
 
-            if s > 1:
-                winning_pair_s = all_winning_pairs[s - 2]  # get the winning pair of previous level
-                G_w_1 = winning_pair_s[0]
-                G_w_2 = winning_pair_s[1]
+        if num + extra == 0:
+            return np.nan, observed_target
 
-            s -= 1
-        return np.array(corrections)
+        p_value = extra / (extra + num)
+
+        return (p_value, observed_target)
+        '''
+        
+        if self.tau == 0:
+            def log_integrand(r):
+                r = float(r)
+                return f.logpdf(x=r, dfn=dfn, dfd=dfd)
+        else:
+            def log_integrand(r):
+                r = float(r)
+                lp = f.logpdf(x=r, dfn=dfn, dfd=dfd) + self._sel_correction_F_random_pair_fast(c1, c2, r, P2, R0, R1, S)
+                return lp
+
+        # Find the maximum log value for numerical stability
+        xs = np.linspace(0.0, max(1.0, observed_target * 3), 200)
+        log_vals = np.array([log_integrand(x) for x in xs])
+        finite_mask = np.isfinite(log_vals)
+
+        if not np.any(finite_mask):
+            return np.nan, observed_target
+
+        log_max = np.max(log_vals[finite_mask])
+
+        # Integrand in original scale, but stabilized
+        def integrand_stabilized(x):
+            log_val = log_integrand(x)
+            if not np.isfinite(log_val):
+                return 0.0
+            # Subtract log_max to prevent underflow
+            return np.exp(log_val - log_max)
+
+        # Integrate [0, observed_target]
+        num, num_err = quad(
+            integrand_stabilized,
+            0.0,
+            float(observed_target),
+            limit=limit,
+            epsrel=1e-5
+        )
+
+        # Integrate [observed_target, inf]
+        extra, extra_err = quad(
+            integrand_stabilized,
+            float(observed_target),
+            np.inf,
+            limit=limit,
+            epsrel=1e-5
+        )
+
+        # The log_max cancels out in the ratio
+        if num + extra == 0:
+            return np.nan, observed_target
+
+        p_value = extra / (extra + num)
+
+        return (p_value, observed_target)
+        
+        '''
+
+
         # return np.array(cor_prob)
 
-    def merge_inference_F_random_pair(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15):
+    def merge_inference_F_random_pair_interpolation(self, c1, c2, ngrid=10000, ncoarse=20, grid_width=15):
         def create_indicator_diagonal_matrix(index_list, n):
             diag = np.zeros(n)
             diag[index_list] = 1
             return np.diag(diag), diag
 
         if self.tau != 0:
-            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            nu = self.compute_nu_pair(c1, c2).reshape(-1, 1)
             p_node_1 = c1
             p_node_2 = c2
             m = len(p_node_1.points) + len(p_node_2.points)
@@ -1242,7 +1723,7 @@ class AgglomerativeClustering:
 
                 stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
                 observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
-                            np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                        np.linalg.norm(P1 @ self.X, 'fro') ** 2)
                 # print(np.linalg.norm(P0 @ self.X, 'fro') ** 2)
                 # print(np.linalg.norm(P1 @ self.X, 'fro') ** 2)
                 # print(observed_target)
@@ -1257,7 +1738,7 @@ class AgglomerativeClustering:
                     eval_grid = stat_grid
 
                 if ncoarse is None:
-                    sel_probs = self._sel_correction_F_random_pair(c1,c2, stat_grid, P2, R0, R1, S)
+                    sel_probs = self._sel_correction_F_random_pair(c1, c2, stat_grid, P2, R0, R1, S)
                     p = self.p
                     log_prior = np.zeros(ngrid)
                     for g in range(ngrid):
@@ -1324,7 +1805,7 @@ class AgglomerativeClustering:
                             num += posterior[g]
                     p_value = num / sum
         else:
-            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            nu = self.compute_nu_pair(c1, c2).reshape(-1, 1)
             p_node_1 = c1
             p_node_2 = c2
             m = len(p_node_1.points) + len(p_node_2.points)
@@ -1359,15 +1840,16 @@ class AgglomerativeClustering:
                 p_value = num / sum
 
         return (p_value, observed_target, sel_probs)
+
     ###########TODO: grid adjustment
-    def merge_inference_F_random_pair_grid(self, c1,c2, ngrid=10000, ncoarse=20, grid_width=15):
-        def get_fine_grid(cdf, grid, qlow = 0.005, qhigh = 0.995,buffer = 5):
+    def merge_inference_F_random_pair_grid(self, c1, c2, ngrid=10000, ncoarse=20, grid_width=15):
+        def get_fine_grid(cdf, grid, qlow=0.005, qhigh=0.995, buffer=5):
             low = np.interp(qlow, cdf, grid)
             high = np.interp(qhigh, cdf, grid)
             width = high - low
             low = max(grid.min(), low - buffer * width)
             high = min(grid.max(), high + buffer * width)
-            #print(low,high)
+            # print(low,high)
             return low, high
 
         def get_corrected_cdf(sel_probs, dfn, dfd, grid):
@@ -1387,10 +1869,11 @@ class AgglomerativeClustering:
             diag = np.zeros(n)
             diag[index_list] = 1
             return np.diag(diag), diag
+
         low = 0
         high = grid_width
         if self.tau != 0:
-            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            nu = self.compute_nu_pair(c1, c2).reshape(-1, 1)
             p_node_1 = c1
             p_node_2 = c2
             m = len(p_node_1.points) + len(p_node_2.points)
@@ -1414,7 +1897,7 @@ class AgglomerativeClustering:
 
                 stat_grid = np.linspace(0.00001, grid_width, num=ngrid)
                 observed_target = (m - 2) * np.linalg.norm(P0 @ self.X, 'fro') ** 2 / (
-                            np.linalg.norm(P1 @ self.X, 'fro') ** 2)
+                        np.linalg.norm(P1 @ self.X, 'fro') ** 2)
 
                 if ncoarse is not None:
                     coarse_grid = np.linspace(0.00001, grid_width, ncoarse)
@@ -1423,7 +1906,7 @@ class AgglomerativeClustering:
                     eval_grid = stat_grid
 
                 if ncoarse is None:
-                    sel_probs = self._sel_correction_F_random_pair(c1,c2, stat_grid, P2, R0, R1, S)
+                    sel_probs = self._sel_correction_F_random_pair(c1, c2, stat_grid, P2, R0, R1, S)
                     p = self.p
                     log_prior = np.zeros(ngrid)
                     for g in range(ngrid):
@@ -1444,8 +1927,7 @@ class AgglomerativeClustering:
                     sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, eval_grid, P2, R0, R1, S)
                     step = sel_probs_coarse.shape[1]
 
-
-                    #intropolation to get correction on fine grid
+                    # intropolation to get correction on fine grid
                     interpolation = np.array([
                         interp1d(eval_grid, sel_probs_coarse[:, s],
                                  kind='quadratic',
@@ -1455,12 +1937,11 @@ class AgglomerativeClustering:
                     ])
                     sel_probs = interpolation.sum(axis=0)
 
-
-                    #compute corrected cdf to get shorter grid
+                    # compute corrected cdf to get shorter grid
                     corr_cdf = get_corrected_cdf(sel_probs, dfn, dfd, grid)
-                    low, high = get_fine_grid(corr_cdf,grid)
-                    new_coarse_grid = np.linspace(low,high,ncoarse)
-                    fine_grid = np.linspace(low,high,ngrid*2)
+                    low, high = get_fine_grid(corr_cdf, grid)
+                    new_coarse_grid = np.linspace(low, high, ncoarse)
+                    fine_grid = np.linspace(low, high, ngrid * 2)
 
                     sel_probs_coarse = self._sel_correction_F_random_pair(c1, c2, new_coarse_grid, P2, R0, R1, S)
                     interpolation = np.array([
@@ -1478,13 +1959,13 @@ class AgglomerativeClustering:
                     posterior = posterior / np.max(posterior)
                     sum = 0
                     num = 0
-                    for g in range(ngrid*2):
+                    for g in range(ngrid * 2):
                         sum += posterior[g]
                         if fine_grid[g] >= (observed_target):
                             num += posterior[g]
                     p_value = num / sum
         else:
-            nu = self.compute_nu_pair(c1,c2).reshape(-1, 1)
+            nu = self.compute_nu_pair(c1, c2).reshape(-1, 1)
             p_node_1 = c1
             p_node_2 = c2
             m = len(p_node_1.points) + len(p_node_2.points)

@@ -104,7 +104,7 @@ if __name__ == "__main__":
     })
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    output_dir = os.path.join(base_dir, "results/raw/fig4")
+    output_dir = os.path.join(base_dir, "results/raw/power")
     os.makedirs(output_dir, exist_ok=True)
 
     csv_path = os.path.join(output_dir, f"rejection_es_barber_K{K}_{linkage}.csv")

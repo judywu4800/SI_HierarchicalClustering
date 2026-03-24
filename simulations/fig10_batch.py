@@ -28,7 +28,7 @@ ro.r(f'source("{r_func_path}")')
 
 def run_randomized_pvals(n, p, sigma, K, tau, linkage, num_trials=1000, n_jobs=-1):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    output_dir = os.path.join(base_dir, "results/raw/fig8_batch")
+    output_dir = os.path.join(base_dir, "results/raw/fig10")
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\n[Randomized] K={K}, linkage={linkage}, tau={tau}")
@@ -50,7 +50,7 @@ def run_randomized_pvals(n, p, sigma, K, tau, linkage, num_trials=1000, n_jobs=-
 
 def run_gao_barber_pvals(n, p, sigma, K, linkage, num_trials=1000):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    output_dir = os.path.join(base_dir, "results/raw/fig8_batch")
+    output_dir = os.path.join(base_dir, "results/raw/fig10")
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\n[Gao/Barber] K={K}, linkage={linkage}")

@@ -17,7 +17,7 @@ if __name__ =='__main__':
 
     df_all = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
-    K_F   = df_all["K_hat"]
+    K_F = df_all["K_hat"]
     #K_gap = df_all["K_hat_gap"]
 
     #Kmin = 1

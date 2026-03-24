@@ -37,15 +37,15 @@ figure2:
 	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig2
 	@echo "Complete. Figure 2 saved in $(FIG_DIR)"
 
-# Figure 3: Comparison of ECDF and Type I error across randomization levels
-fig3_sim_cluster:
+# Figure 3 & 8: Comparison of ECDF and Type I error across randomization levels
+validity_sim_cluster:
 	# slurm for reference
 	@echo "Submitting simulations to cluster."
 	sbatch scripts/run_typeI_r.sh
 	sbatch scripts/run_validity_r.sh
 	@echo "Submitted."
 
-fig3_sim:
+validity_sim:
 	# Here we use num_trials = 20 num_repeats = 1 for demonstration
 	# In experiments we used 2000 trials for ECDF, 200 trials and 100 repeats for Type I error
 	# Please change the parameters below accordingly to reproduce the plot.
@@ -56,11 +56,15 @@ fig3_sim:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.type1_error --K 3 --num_trials 20 --num_repeats 1
 	@echo "Simulation completed."
 figure3:
-	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig3
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig3_8 --K 2
 	@echo "Complete. Figure 3 saved in $(FIG_DIR)"
 
-# Figure 4: Power comparison
-fig4_sim_cluster:
+figure8:
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig3_8 --K 3
+	@echo "Complete. Figure 8 saved in $(FIG_DIR)"
+
+# Figure 4 & 9: Power comparison
+power_sim_cluster:
 	# slurm for reference
 	@echo "Submitting simulations to cluster."
 	sbatch scripts/run_power_barber.sh
@@ -70,7 +74,7 @@ fig4_sim_cluster:
 
 
 TRIALS := 2
-fig4_sim:
+power_sim:
 	# Here we use num_trials = 2 for demonstration
 	# In experiments we used 2000 trials
 	# Please change the parameters below accordingly to reproduce the plot.
@@ -90,8 +94,12 @@ fig4_sim:
 
 
 figure4:
-	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig4
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig4_9 --K 2
 	@echo "Complete. Figure 4 saved in $(FIG_DIR)"
+
+figure9:
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig4_9 --K 3
+	@echo "Complete. Figure 9 saved in $(FIG_DIR)"
 
 
 # Figure 5: Histogram of Khat with varying delta
@@ -155,27 +163,27 @@ figure7:
 	@echo "Complete. Figure 7 saved in $(FIG_DIR)"
 
 # Figure 8: ECDF with different linkages
-fig8_sim_cluster:
+fig10_sim_cluster:
 	@echo "Submitting simulations to cluster."
-	sbatch scripts/run_fig8sim.sh
+	sbatch scripts/run_fig10_batch.sh
 	@echo "Submitted."
 
-fig8_sim:
+fig10_sim:
 	# Here we use num_trails = 20 for demonstration
 	# In experiments we used 2000 trials.
 	# Please change the parameters below accordingly to reproduce the plot.
-	@echo "Running simulations for Figure 8..."
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.fig8_simulations --K 2 --num_trials 20
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.fig8_simulations --K 3 --num_trials 20
+	@echo "Running simulations for Figure 10..."
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.fig10_simulations --K 2 --num_trials 2
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.fig10_simulations --K 3 --num_trials 2
 	@echo "Complete."
 
 
-figure8:
-	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig8
+figure10:
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig10
 	@echo "Complete. Figure 8 saved in $(FIG_DIR)"
 
 # Figure 9: Histogram for estimated K across different true K
-fig9_sim_cluster:
+fig11_sim_cluster:
 	@echo "Submitting simulations to cluster."
 	sbatch scripts/run_chooseK_varyK.sh
 	@echo "Submitted."
@@ -187,17 +195,17 @@ DELTA := 6
 K_LIST := 2 3 4
 N_REP := 3
 
-fig9_sim:
+fig11_sim:
 	# Here we use num_rep=3 for demonstration
 	# In experiments we used 100 trials.
 	# Please change the parameters below accordingly to reproduce the plot.
 	@for K in $(K_LIST); do \
 		for t in $$(seq 0 $(shell expr $(N_REP) - 1)); do \
 			echo "K=$$K trial=$$t (n=$(N), p=$(P), delta=$(DELTA))"; \
-			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.fig9_sim --K $$K --n $(N) --p $(P) --delta $(DELTA) --trial $$t; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m simulations.Khat_varyK --K $$K --n $(N) --p $(P) --delta $(DELTA) --trial $$t; \
 		done; \
 	done
 
-figure9:
-	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig9
+figure11:
+	cd plotting && PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m plot_fig11
 	@echo "Complete. Figure 9 saved in $(FIG_DIR)"

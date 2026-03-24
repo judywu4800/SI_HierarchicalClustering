@@ -30,7 +30,7 @@ echo "  Running validity check for K=$K"
 echo "  SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 echo "============================================="
 
-python simulations/check_validity.py --K "$K"
+python simulations/check_validity.py --K "$K" --num_trials 2000
 
 touch results/raw/fig3/validity_done.txt
 

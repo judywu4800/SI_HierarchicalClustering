@@ -65,7 +65,7 @@ if __name__ == "__main__":
         "barber": "#B069DB"   # Barber
     }
 
-    base_path = "../results/raw/fig4"
+    base_path = "../results/raw/power"
     fig, axes = plt.subplots(len(Ks), 4, figsize=(14, 4))
     if len(Ks) == 1:
         axes = axes[np.newaxis, :]

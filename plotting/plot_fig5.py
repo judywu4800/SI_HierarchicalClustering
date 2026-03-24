@@ -11,7 +11,7 @@ if __name__=="__main__":
     n= 30
     output_dir = os.path.join("../results/figures")
     os.makedirs(output_dir, exist_ok=True)
-    files = glob.glob(f"../results/raw/fig5/*.csv")
+    files = glob.glob(f"../results/raw/fig5new/*.csv")
     df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
     delta_list = [4,6,8,10,12,14]
     df = df[df["delta"].isin(delta_list)]
@@ -105,5 +105,5 @@ if __name__=="__main__":
         ax.set_yticklabels([f"{int(abs(y))}" for y in yticks])
 
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "fig7_n30_2x3.png"), bbox_inches="tight")
-    plt.show()
+    plt.savefig(os.path.join(output_dir, "fig5_n30_2x3.png"), bbox_inches="tight")
+    plt.close()

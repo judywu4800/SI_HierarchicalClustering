@@ -12,9 +12,9 @@ import pandas as pd
 import random
 import matplotlib.patches as mpatches
 from find_best_K import find_best_K_F, generate_alpha_list_exp, get_labels_at_K, find_best_K_chi
-from hierarchical_clustering_invariant import *
+from rand_hclust import *
 from palmerpenguins import load_penguins
-from simulations.Khat_delta import gap_statistic
+from simulations.Khat_delta import gap_statistic_full
 from joblib import Parallel, delayed
 from collections import Counter
 from datetime import datetime
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     start_time = datetime.now()
     K, _, _, _ = find_best_K_F(X, tau=0.1, alpha_list=alpha_list, linkage = "complete",
                                      total_alpha=0.05, n_threshold=0.4*n, hard_threshold=0.1*n, seed = seed)
-    K_hat_gap = gap_statistic(X,K_max=30, B=50)
+    K_hat_gap = gap_statistic_full(X,K_max=10, B=50, seed = seed)["K_hat"]
     end_time = datetime.now()
     elapsed_minutes = (end_time - start_time).total_seconds() / 60
 

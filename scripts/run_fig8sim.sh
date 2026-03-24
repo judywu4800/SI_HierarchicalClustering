@@ -22,22 +22,20 @@ echo "  Starting validity_fig5_batch for K=$K"
 echo "  SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 echo "============================================="
 
-echo "Python executable:"
+conda activate rpy2_env
+
 which python
 python -c "import sys; print('Python executable:', sys.executable)"
-echo "R HOME:"
-R RHOME
 
-# ==== Navigate to repo ====
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$REPO_ROOT"
+export R_HOME=$(R RHOME)
+
+cd /home/judydw/SI_HierarchicalClustering
 mkdir -p logs
-mkdir -p results/raw/fig5
+mkdir -p results
 
-export PYTHONPATH="$PWD/src:$PYTHONPATH"
+export PYTHONPATH=$PWD/src:$PYTHONPATH
 
 # ==== Run experiment for this K ====
-python simulations/fig5_simulations.py --K $K --num_trials 2000
+python simulations/fig10_simulations.py --K $K --num_trials 2000
 
 echo "Done for K=$K at $(date)"

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     n = 30
     p = 2
     sigma = 1
-    tau_list = 0.1
+    tau = 0.1
     deltas = np.linspace(1, 10, 9)
     alpha = 0.05
     num_trials = args.num_trials
@@ -39,12 +39,19 @@ if __name__ == "__main__":
     print("=" * 60)
 
     df_trials = check_power_es_single_tau_fast(
-        n, sigma, tau_list, deltas, alpha, num_trials,
-        K=K, linkage=linkage, n_jobs=n_jobs
+        n=n,
+        sigma=sigma,
+        tau=tau,
+        deltas=deltas,
+        alpha=alpha,
+        num_trials=num_trials,
+        K=K,
+        linkage=linkage,
+        n_jobs=n_jobs
     )
 
     base_dir = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
-    output_dir = os.path.join(base_dir, "results/raw/fig4")
+    output_dir = os.path.join(base_dir, "results/raw/power")
     os.makedirs(output_dir, exist_ok=True)
 
     csv_path = os.path.join(output_dir, f"reject_effect_size_K{K}_{linkage}.csv")

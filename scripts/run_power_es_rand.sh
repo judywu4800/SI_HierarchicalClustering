@@ -51,7 +51,7 @@ echo "PYTHONPATH set to: $PYTHONPATH"
 echo "============================================="
 
 # ==== Run experiment ====
-python simulations/rand_power_es.py "$LINKAGE" "$K"
+python simulations/rand_power_es.py --num_trials 2000 --K "$K" --linkage "$LINKAGE"
 
 touch results/raw/fig4_es/power_rand_done.txt
 echo "Done for LINKAGE=$LINKAGE, K=$K at $(date)"

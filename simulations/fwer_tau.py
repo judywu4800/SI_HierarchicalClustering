@@ -1,5 +1,5 @@
 import sys, os
-sys.path.append(os.path.abspath('../../src'))
+sys.path.append(os.path.abspath('../src'))
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed

@@ -1,5 +1,5 @@
 import numpy as np
-from hierarchical_clustering_invariant import AgglomerativeClustering
+from rand_hclust import AgglomerativeClustering
 from utils import *
 import warnings
 import matplotlib.pyplot as plt
@@ -43,7 +43,8 @@ def get_labels_at_K(model, K):
                     labels[idx] = cid
             return labels
     raise ValueError(f"No step found with {K} clusters")
-def find_best_K_F(X, tau, alpha_list, n_threshold=10, hard_threshold = 5, linkage="complete", total_alpha=0.05, seed = None):
+def find_best_K_F(X, tau, alpha_list, n_threshold=10, hard_threshold = 5, linkage="complete", total_alpha=0.05, seed = None, method="interpolation", limit=None, ngrid=2000, ncoarse = 20, grid_width=300):
+    # use interpolation method to avoid numerical issues
     rng = np.random.default_rng(seed)
     n = np.shape(X)[0]
     if not np.isclose(np.sum(alpha_list), total_alpha):
@@ -78,12 +79,12 @@ def find_best_K_F(X, tau, alpha_list, n_threshold=10, hard_threshold = 5, linkag
             if min(n1, n2) <= n_threshold:
                 alpha = np.min(alpha_list)  # more conservative for smaller clusters
                 idx = np.argmin(alpha_list)
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=300, ncoarse=20, ngrid=1000)
+                pval, _ = model.merge_inference_F(node, method=method,limit=limit, ngrid=ngrid, ncoarse=ncoarse, grid_width=grid_width)
 
             else:
                 alpha = np.max(alpha_list)  # More power for larger clusters
                 idx = np.argmax(alpha_list)
-                pval, _, _ = model.merge_inference_F_grid(node, grid_width=300, ncoarse=20, ngrid=1000)
+                pval, _ = model.merge_inference_F(node, method=method,limit=limit, ngrid=ngrid, ncoarse=ncoarse, grid_width=grid_width)
 
             alpha_list = np.delete(alpha_list, idx)
         alpha_seq.append(alpha)

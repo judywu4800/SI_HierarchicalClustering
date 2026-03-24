@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 if __name__=="__main__":
-    files = glob.glob("../results/raw/fig11_1/*.csv")
+    files = glob.glob("../results/raw/fig11/*.csv")
     output_dir = os.path.join("../results/figures")
     os.makedirs(output_dir, exist_ok=True)
     df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)

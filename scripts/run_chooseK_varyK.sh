@@ -26,7 +26,7 @@ cd /home/judydw/SI_HierarchicalClustering
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
 echo "Starting trial $SLURM_ARRAY_TASK_ID at $(date)"
-python simulations/fig9_sim.py \
+python simulations/Khat_varyK.py \
     --K $K \
     --n $N \
     --p $P \

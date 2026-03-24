@@ -57,13 +57,13 @@ R RHOME
 #  Section 3: Navigate to repo and prepare folders
 # ============================================================
 cd /home/judydw/SI_HierarchicalClustering
-mkdir -p logs results/raw/fig8_batch
+mkdir -p logs results/raw/fig10_batch
 export PYTHONPATH=$PWD/src:$PYTHONPATH
 
 # ============================================================
 #  Section 4: Run the experiment
 # ============================================================
-python simulations/fig8_batch.py \
+python simulations/fig10_batch.py \
     --K $K \
     --linkage $linkage \
     --method $method \
