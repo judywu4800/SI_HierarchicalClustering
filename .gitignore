@@ -13,12 +13,14 @@ __pycache__/
 logs/
 *.out
 *.err
-#*.csv
+*.csv
 *.npz
 *.npy
 *.pkl
 #*.png
 #*.pdf
+
+results/
 
 # =========================
 # IDE or environment files
